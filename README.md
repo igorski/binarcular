@@ -13,20 +13,23 @@ An example structure that defines the header of a .WAV file (see http://soundfil
 would look like:
 
 ```
-const { CHAR, INT16, INT32 } = TypedFileParser.types;
+import typedFileParser from 'typed-file-parser';
+const { CHAR, INT16, INT32 } = typedFileParser.types;
 
 const wavHeader = Object.freeze({
     type: [ CHAR, 4 ],
     size: INT32,
     format: [ CHAR, 4 ],
-    name: [ CHAR, 4 ],
-    length: INT32,
-    format: INT16,
+    formatName: [ CHAR, 4 ],
+    formatLength: INT32,
+    audioFormat: INT16,
     channelAmount: INT16,
     sampleRate: INT32,
     bytesPerSecond: INT32,
     blockAlign: INT16,
-    bitsPerSample: INT16
+    bitsPerSample: INT16,
+    dataChunkId: [ CHAR, 4 ],
+    dataChunkSize: INT32
 });
 ```
 
@@ -62,7 +65,8 @@ above, we can read the header like so (let's assume here the file has already
 been read as a base64 String):
 
 ```
-const { parseBase64 } = TypedFileParser;
+import typedFileParser from 'typed-file-parser';
+const { parseBase64 } = typedFileParser;
 
 const { data, end } = parseBase64( waveFileAsBase64, wavHeader, 0 );
 console.log( data ); // will contain the properties of a WAV file header

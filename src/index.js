@@ -33,9 +33,12 @@ const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
 let _isLittleEndian = undefined;
 function isLittleEndian() {
     if ( _isLittleEndian === undefined ) {
-        const _tmpArr   = new Uint8Array( 4 );
-        const _tmpView  = new Uint32Array( _tmpArr.buffer );
-        _isLittleEndian = !((_tmpView[0] = 1) & _tmpArr[0]);
+        const b = new ArrayBuffer( 4 );
+        const a = new Uint32Array( b );
+        const c = new Uint8Array (b );
+        a[ 0 ]  = 0xdeadbeef;
+
+        _isLittleEndian = c[ 0 ] == 0xef;
     }
     return _isLittleEndian;
 }
@@ -67,10 +70,11 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         // 8-bit String type
         case types.CHAR:
             if ( length === 1 ) {
-                out.value = String.fromCharCode( byteArray[ offset ]);
+                out.value = String.fromCharCode( byteArray[ offset ].toString( 16 ));
             } else {
-                out.value = byteArray.slice( offset, offset + length ).map( byte => String.fromCharCode( byte )).join( '' );
+                out.value = [...byteArray.slice( offset, offset + length )].map( byte => String.fromCharCode( byte )).join( '' );
             }
+            out.offset += length;
             break;
         // 8-bit Number types
         case types.BYTE:
@@ -81,6 +85,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             } else {
                 out.value = [...byteArray.slice( offset, offset + length )];
             }
+            out.offset += length;
             break;
         // 16-bit Number types
         case types.SHORT:
@@ -90,6 +95,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             out.value = combineBytes( offset, length, 2, it => {
                 return (byteArray[ it + 1 ] << 8) | byteArray[ it ];
             });
+            out.offset += length * 2;
             break;
         // 24-bit Number types
         case types.INT24:
@@ -98,6 +104,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             out.value = combineBytes( offset, length, 3, it => {
                 return (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
             });
+            out.offset += length * 3;
             break;
         // 32-bit Number types
         case types.INT32:
@@ -110,8 +117,9 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         case types.UFLOAT32:
             // we will need to combine four bytes into one value
             out.value = combineBytes( offset, length, 4, it => {
-                return (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it ] << 8) | byteArray[ it ];
+                return (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
             });
+            out.offset += length * 4;
             break;
         // 64-bit Number types
         case types.LONGLONG:
@@ -124,9 +132,9 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             out.value = combineBytes( offset, length, 8, it => {
                 return (byteArray[ it + 7 ] << 56) | (byteArray[ it + 6 ] << 48) | (byteArray[ it + 5 ] << 40) | (byteArray[ it + 4 ] << 32) | (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
             });
+            out.offset += length * 8;
             break;
     }
-    out.offset += length;
     return out;
 }
 
@@ -137,9 +145,9 @@ function getDataForType( typeDefinition, byteArray, offset ) {
  */
 function combineBytes( offset, length, amount, fn ) {
     const isList = length > 1;
-    const value  = isList ? [] : 0;
     const max    = offset + ( length * amount );
 
+    let value = isList ? [] : 0;
     for ( let i = offset; i < max; i += amount ) {
         const combinedValue = fn( i );
         if ( isList ) {
@@ -178,24 +186,29 @@ function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
     let keyIndex        = 0;
 
     const out = {
-        data: null,
+        data: {},
         end: offset
     };
 
-    for ( let i = Math.max( 0, offset ); i < total && keyIndex < totalKeys; ) {
+    let i = Math.max( 0, offset );
+    for ( i; i < total && keyIndex < totalKeys; ) {
         const key            = structureKeys[ keyIndex ];
         const typeDefinition = structureDefinition[ key ];
         const result = getDataForType( typeDefinition, byteArray, i );
 
         if ( result.value === undefined ) {
-            return NO_RESULT; // failed to read data
+            out.error = true;
+            return out; // failed to read data
         }
 
         out.data[ key ] = result.value;
-        i += result.offset;
+        i = result.offset;
         ++keyIndex;
     }
     out.end = i;
+console.warn(byteArray.slice(20, 22));
+    // TODO: count if end is equal to the expected size
+
     return out;
 };
 
