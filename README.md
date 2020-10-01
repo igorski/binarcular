@@ -124,7 +124,7 @@ Where:
 
 * _fileReference_ is the file to parse (one of File, Uint8Array or String)
 * _structureDefinition_ is an Object defining a structure (as described above)
-* _offset_ is a numerical index of where in the file's byte Array reading should start
+* _offset_ is a numerical index of where in the file's ByteArray reading should start
   this defaults to 0 to start reading from the beginning of the file.
 
 ### Example
@@ -136,8 +136,9 @@ above, we can read the header like so:
 import { parseFile } from 'typed-file-parser';
 async function readWaveHeader( fileReference ) {
     const { data, end, error } = await parseFile( fileReference, wavHeader );
+
     console.log( data );  // will contain the properties of a WAV file header
-    console.log( end );   // will describe the end offset of the header ()
+    console.log( end );   // will describe the end offset of the header
     console.log( error ); // when true, a file reading error occurred
 }
 ```
@@ -160,8 +161,8 @@ You can also view the demo provided in this repository's _index.html_ file.
 ## Performance
 
 Depending on the files you're working with, memory allocation can be a problem.
-The parse methods will only read the block that is requested (e.g. from the
-requested offset and for the size of the requested structureDefinition) and
+The parse methods will only read the block that is requested (e.g. starting from the
+requested offset and for the size of the requested _structureDefinition_) and
 should be light on resources.
 
 Depending on your use case, you might take additional steps which should be
@@ -173,4 +174,5 @@ taking the following guidelines into consideration:
 * If you intend to do multiple reads on a file (for instance: first reading
   its header to determine where in the file the meaningful content begins) it
   is recommended to use the _fileToByteArray_-method to create a single
-  reusable byteArray and use the _parseByteArray_-method instead.
+  reusable byteArray and use the _parseByteArray_-method instead. This also
+  makes sense if you need to read the file in its entirety.

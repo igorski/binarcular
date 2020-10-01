@@ -1,4 +1,27 @@
 /**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2020 Igor Zinken https://www.igorski.nl
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/**
  * Whether the environment supports use of typed-file-parser
  * Note that for 64-bit usage there are additional requirements
  */
@@ -35,20 +58,6 @@ export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
 const FLOATING_POINT_TYPES = [
     'FLOAT', 'FLOAT32', 'DOUBLE', 'FLOAT64'
 ];
-// JavaScript Number are always signed. Here we list the types that should
-// be converted to unsigned values.
-const UNSIGNED_TYPES = [
-    'UINT8',
-    'UINT16',
-    'UINT24',
-    'UINT32', 'ULONG',
-    'UINT64', 'ULONGLONG'
-];
-const SIGNED_TO_UNSIGNED_8  = 127;
-const SIGNED_TO_UNSIGNED_16 = 32768;
-const SIGNED_TO_UNSIGNED_24 = 8388607;
-const SIGNED_TO_UNSIGNED_32 = 1073741823;
-const SIGNED_TO_UNSIGNED_64 = 4.611686e+18;
 
 /**
  * Parse a byte array and map the data starting from the given offset to an Object
@@ -111,7 +120,7 @@ export function parseBase64( base64, structureDefinition, offset ) {
     try {
         byteArray = Uint8Array.from( window.atob( base64.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
     } catch {
-        return NO_RESULT;
+        return { data: null, end: offset, error: true };
     }
     return parseByteArray( byteArray, structureDefinition, offset );
 };
@@ -197,11 +206,12 @@ function isLittleEndian() {
 /**
  * For floating point conversions we can leverage the methods of the DataView
  * class. Instead of constantly recreating this we can lazily create and reuse one.
+ * Note: this is only pooled for the 32-bit data types.
  */
 let _dataView = undefined;
 function getDataView() {
     if ( _dataView === undefined ) {
-        _dataView = new DataView( new Uint8Array( 8 ).buffer ); // the max value we deal with is 64-bits (8 bytes)
+        _dataView = new DataView( new Uint8Array( 4 ).buffer );
     }
     return _dataView;
 }
@@ -217,15 +227,14 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         offset
     };
 
-    const type         = getDataTypeFromDefinition( typeDefinition );
-    const length       = getLengthFromDefinition( typeDefinition );
+    const type   = getDataTypeFromDefinition( typeDefinition );
+    const length = getLengthFromDefinition( typeDefinition );
 
     if ( offset + ( length - 1 ) >= byteArray.length ) {
         return out;
     }
     const littleEndian = isDefinitionForLittleEndian( typeDefinition );
     const isFloat      = FLOATING_POINT_TYPES.includes( type );
-    const isUnsigned   = UNSIGNED_TYPES.includes( type );
     const dataView     = isFloat ? getDataView() : null;
 
     switch ( type ) {
@@ -327,9 +336,9 @@ function getDataForType( typeDefinition, byteArray, offset ) {
                 const dataView = new DataView( bytes.buffer );
 
                 // tiny loss of precision for a max value (8 times 0xff)
-                // this returns 18,446,744,073,709,552,000  insteadof 18,446,744,073,709,551,615 (max uint64 value)
+                // this returns 18,446,744,073,709,552,000 instead of 18,446,744,073,709,551,615 (max uint64 value)
                 // also note endianness used here is from the client machine and not from the typeDefinition as DataView handles this
-                const value = dataView.getUint32( 0, _isLittleEndian ) + 2 ** 32 * dataView.getUint32( 4, _isLittleEndian );
+                let value = dataView.getUint32( 0, _isLittleEndian ) + 2 ** 32 * dataView.getUint32( 4, _isLittleEndian );
 
                 if ( isFloat ) {
                     dataView.setBigInt64( 0, BigInt( value ));

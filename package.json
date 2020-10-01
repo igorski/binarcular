@@ -1,17 +1,23 @@
 {
   "name": "typed-file-parser",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "An extension that allows reading file",
-  "main": "src/typed-file-parser.js",
+  "keywords": [
+      "binary", "file", "parse", "parsing", "typed", "struct", "conversion", "header", "client", "browser"
+  ],
+  "main": "dist/typed-file-parser.js",
+  "jsnext:main": "typed-file-parser.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=dev webpack-dev-server --progress --mode development --config webpack.config.js",
     "build": "webpack -p --progress --mode production --config webpack.config.js",
     "test": "jest",
     "prepublish": "npm run test && npm run build"
   },
-  "keywords": [],
+  "engines": {
+    "node": ">=10.0.0"
+  },
   "author": "Igor Zinken <igor.zinken@igorski.nl> (https://www.igorski.nl/)",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@babel/core": "7.9.6",
     "@babel/plugin-transform-runtime": "^7.9.6",
@@ -25,5 +31,5 @@
     "webpack-cli": "^3.3.12",
     "webpack-dev-server": "^3.11.0",
     "webpack-merge": "^5.1.4"
-  }
+}
 }
