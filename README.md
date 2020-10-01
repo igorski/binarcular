@@ -10,39 +10,41 @@ data from a file to determine where the meaningful data is stored.
 ## Defining a structure
 
 Defining a structure is nothing more than declaring an Object where the keys
-define a name meaningful to your purpose and the value is either:
+define a name meaningful to your purpose and the value is a String describing:
 
-* one of the available type enumerations.
-* an Array where the first index is an enumerated type and the second is an integer defining the Array length
+* one of the available type enumerations (note the imported key and its value are equal)
+* optional Array declaration by adding a numerical value between brackets (_[n]_) the
+  value will be an array of given length _n_
+* optional pipeline separator modifier defining the endianness of the file's byte order
+  (either _|BE_ for Big Endian or _|LE_ for Little Endian). When unspecified, the
+  endianness of the clients system is used (assuming the file has been encoded on/by a similar
+  system, which usually means Little Endian these days).
 
-An example structure that defines the header of a .WAV file (see http://soundfile.sapp.org/doc/WaveFormat/)
+An example structure that defines the header of a .WAV file (see http://soundfile.sapp.org/doc/WaveFormat)
 would look like:
 
 ```
-import { types } from 'typed-file-parser';
-const { CHAR, INT16, INT32 } = types;
-
 const wavHeader = {
-    type: [ CHAR, 4 ],
-    size: INT32,
-    format: [ CHAR, 4 ],
-    formatName: [ CHAR, 4 ],
-    formatLength: INT32,
-    audioFormat: INT16,
-    channelAmount: INT16,
-    sampleRate: INT32,
-    bytesPerSecond: INT32,
-    blockAlign: INT16,
-    bitsPerSample: INT16,
-    dataChunkId: [ CHAR, 4 ],
-    dataChunkSize: INT32
+    type:           'CHAR[4]',
+    size:           'INT32',
+    format:         'CHAR[4]',
+    formatName:     'CHAR[4]',
+    formatLength:   'INT32',
+    audioFormat:    'INT16',
+    channelAmount:  'INT16',
+    sampleRate:     'INT32',
+    bytesPerSecond: 'INT32',
+    blockAlign:     'INT16',
+    bitsPerSample:  'INT16',
+    dataChunkId:    'CHAR[4]',
+    dataChunkSize:  'INT32'
 };
 ```
 
 Note that the order of the keys (and more importantly: their type definition) should match
 the order of the values as described the particular file's type!
 
-All available types are listed in the _{ types }_ export. Note that definitions
+All available data types are listed in the _{ types }_ export. Note that definitions
 for _CHAR_ will return as a String. If you want an 8-bit integer/byte value, use
 _BYTE_ or _INT8_ instead.
 

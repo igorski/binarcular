@@ -26,6 +26,13 @@ export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
     return acc;
 }, {}));
 
+// JavaScript doesn't distinguish between integer or floating point values in its
+// Number type, here we list the types that should be converted to floating point
+const FLOATING_POINT_TYPES = [
+    'FLOAT', 'UFLOAT', 'FLOAT32', 'UFLOAT32',
+    'DOUBLE', 'UDOUBLE', 'FLOAT64', 'UFLOAT64'
+];
+
 /**
  * Parse a byte array and map the data starting from the given offset to an Object
  * with given structure. The data is read for as long as there is data available in
@@ -47,8 +54,6 @@ export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
  * }}
  */
 export function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
-    isLittleEndian(); // lazily perform endianness check
-
     const total         = byteArray.length;
     const structureKeys = Object.keys( structureDefinition );
     const totalKeys     = structureKeys.length;
@@ -58,7 +63,7 @@ export function parseByteArray( byteArray, structureDefinition = {}, offset = 0 
         data: {},
         end: offset
     };
-console.log(byteArray.slice(0, total ));
+
     let i = Math.max( 0, offset );
     for ( i; i < total && keyIndex < totalKeys; ) {
         const key            = structureKeys[ keyIndex ];
@@ -74,9 +79,8 @@ console.log(byteArray.slice(0, total ));
         i = result.offset;
         ++keyIndex;
     }
-    out.end = i;
-
-    // TODO: count if end is equal to the expected size
+    out.end   = i;
+    out.error = out.end !== offset + getSizeForStructure( structureDefinition );
 
     return out;
 };
@@ -114,6 +118,32 @@ export async function parseFile( fileReference, structureDefinition, offset = 0 
 };
 
 /**
+ * Scan given ByteArray until bytes matching given stringOrByteArray are found,
+ * starting from given offset (default to 0 for start of file).
+ * Returns the offset at which content was found.
+ */
+export function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
+    // transform String to bytes
+    if ( typeof stringOrByteArray === 'string' ) {
+        stringOrByteArray = new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )));
+    }
+    const total        = byteArray.length;
+    const searchLength = stringOrByteArray.length;
+
+    for ( let i = offset; i < total; ++i ) {
+        if ( byteArray[ i ] !== stringOrByteArray[ 0 ]) {
+            continue;
+        }
+        const block = byteArray.slice( i, i + searchLength );
+
+        if ( block.every(( value, index ) => value === stringOrByteArray[ index ])) {
+            return i;
+        }
+    }
+    return Infinity;
+}
+
+/**
  * Converts given File to a ByteArray of requested size
  */
 export async function fileToByteArray( fileReference, offset = 0, size = fileReference.size ) {
@@ -141,7 +171,7 @@ function isLittleEndian() {
         const c = new Uint8Array (b );
         a[ 0 ]  = 0xdeadbeef;
 
-        _isLittleEndian = c[ 0 ] == 0xef;
+        _isLittleEndian = c[ 0 ] === 0xef;
     }
     return _isLittleEndian;
 }
@@ -157,19 +187,21 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         offset
     };
 
-    const isList = Array.isArray( typeDefinition );
-    const type   = isList ? typeDefinition[ 0 ] : typeDefinition;
-    const length = isList ? typeDefinition[ 1 ] : 1;
+    const type         = getDataTypeFromDefinition( typeDefinition );
+    const length       = getLengthFromDefinition( typeDefinition );
 
-    if ( offset + length >= byteArray.length ) {
+    if ( offset + ( length - 1 ) >= byteArray.length ) {
         return out;
     }
+    const littleEndian = isDefinitionForLittleEndian( typeDefinition );
+    const isFloat      = FLOATING_POINT_TYPES.includes( type );
 
-    // note we duplicate between single and list based values to
-    // omit the need for a slicing operation on the ByteArray
     switch ( type ) {
         default:
             return out;
+
+        // NOTE we duplicate between single and list based values to
+        // omit the need for a slicing operation on the ByteArray
         // 8-bit String type
         case types.CHAR:
             if ( length === 1 ) {
@@ -179,6 +211,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             }
             out.offset += length;
             break;
+
         // 8-bit Number types
         case types.BYTE:
         case types.INT8:
@@ -190,26 +223,40 @@ function getDataForType( typeDefinition, byteArray, offset ) {
             }
             out.offset += length;
             break;
+
+        // NOTE the large bit shift statements aren't the most readable, but here we
+        // take comfort in knowing that their performance is nice enough given
+        // that this method is already abstracted behind several subroutines
         // 16-bit Number types
         case types.SHORT:
         case types.INT16:
         case types.UINT16:
             // we will need to combine two bytes into one value
             out.value = combineBytes( offset, length, 2, it => {
-                return (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                if ( littleEndian ) {
+                    return (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                } else {
+                    return (byteArray[ it ] << 8) | byteArray[ it + 1 ];
+                }
             });
             out.offset += length * 2;
             break;
-        // 24-bit Number types
+
+        // 24-bit Number types (this is more meaningful to those dealing with audio formats)
         case types.INT24:
         case types.UINT24:
             // we will need to combine three bytes into one value
             out.value = combineBytes( offset, length, 3, it => {
-                return (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                if ( littleEndian ) {
+                    return (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                } else {
+                    return (byteArray[ it ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it + 2 ];
+                }
             });
             out.offset += length * 3;
             break;
-        // 32-bit Number types
+
+        // 32-bit integer Number types
         case types.INT32:
         case types.UINT32:
         case types.LONG:
@@ -220,10 +267,17 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         case types.UFLOAT32:
             // we will need to combine four bytes into one value
             out.value = combineBytes( offset, length, 4, it => {
-                return (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                let value;
+                if ( littleEndian ) {
+                    value = (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                } else {
+                    value = (byteArray[ it ] << 24) | (byteArray[ it + 1 ] << 16) | (byteArray[ it + 2 ] << 8) | byteArray[ it + 3 ];
+                }
+                return isFloat ? value / 2147483647 : value;
             });
             out.offset += length * 4;
             break;
+
         // 64-bit Number types
         case types.LONGLONG:
         case types.ULONGLONG:
@@ -233,7 +287,13 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         case types.UFLOAT64:
             // we will need to combine eight bytes into one value
             out.value = combineBytes( offset, length, 8, it => {
-                return (byteArray[ it + 7 ] << 56) | (byteArray[ it + 6 ] << 48) | (byteArray[ it + 5 ] << 40) | (byteArray[ it + 4 ] << 32) | (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                let value;
+                if ( littleEndian ) {
+                    value = (byteArray[ it + 7 ] << 56) | (byteArray[ it + 6 ] << 48) | (byteArray[ it + 5 ] << 40) | (byteArray[ it + 4 ] << 32) | (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
+                } else {
+                    value = (byteArray[ it ] << 56) | (byteArray[ it + 1 ] << 48) | (byteArray[ it + 2 ] << 40) | (byteArray[ it + 3 ] << 32) | (byteArray[ it + 4 ] << 24) | (byteArray[ it + 5 ] << 16) | (byteArray[ it + 6 ] << 8) | byteArray[ it + 7 ];
+                }
+                return isFloat ? value / 9223372036854775807 : value;
             });
             out.offset += length * 8;
             break;
@@ -263,14 +323,32 @@ function combineBytes( offset, length, amount, fn ) {
 }
 
 /**
+ * Parse the definition string and retrieve the data type
+ */
+const getDataTypeFromDefinition = typeDefinition => typeDefinition.split(/(\[|\|)/)[0];
+
+/**
+ * Parse the requested length (if Array notation is present) for given definition string
+ */
+const getLengthFromDefinition = typeDefinition => parseInt( typeDefinition.match( /(?<=\[)\d+(?=\])/ )?.[0] ?? 1 );
+
+const isDefinitionForLittleEndian = typeDefinition => {
+    if ( typeDefinition.includes( '|BE' )) {
+        return false;
+    } else if ( typeDefinition.includes( '|LE' )) {
+        return true;
+    }
+    return isLittleEndian(); // when unspecified, default to client environment
+};
+
+/**
  * Calculates the size in bytes for given structure
  */
 function getSizeForStructure( structureDefinition ) {
     let size = 0;
     Object.values( structureDefinition ).forEach( typeDefinition => {
-        const isList = Array.isArray( typeDefinition );
-        const type   = isList ? typeDefinition[ 0 ] : typeDefinition;
-        const length = isList ? typeDefinition[ 1 ] : 1;
+        const type   = getDataTypeFromDefinition( typeDefinition );
+        const length = getLengthFromDefinition( typeDefinition );
 
         switch ( type ) {
             case types.CHAR:
@@ -307,7 +385,7 @@ function getSizeForStructure( structureDefinition ) {
                 size += ( length * 8 );
                 break;
             default:
-                throw new Error(`Unsupported date type ${type}`);
+                throw new Error(`Unsupported data type ${type}`);
         }
     });
     return size;
