@@ -1,7 +1,7 @@
 /**
  * Whether the environment supports use of typed-file-parser
  */
-function isSupported( scope = window ) {
+export function isSupported( scope = window ) {
     return [
         'FileReader', 'atob', 'Uint8Array'
     ].every( fn => typeof scope[fn] === 'function' );
@@ -19,12 +19,115 @@ const TYPE_NAMES = [
     'SHORT', 'INT16', 'UINT16',
     'INT24', 'UINT24',
     'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'UFLOAT', 'FLOAT32', 'UFLOAT32',
-    'LONGLONG', 'LONGLONG', 'DOUBLE', 'UDOUBLE', 'FLOAT64', 'UFLOAT64',
+    'LONGLONG', 'ULONGLONG', 'DOUBLE', 'UDOUBLE', 'FLOAT64', 'UFLOAT64',
 ];
-const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
+export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
     acc[ name ] = name;
     return acc;
 }, {}));
+
+/**
+ * Parse a byte array and map the data starting from the given offset to an Object
+ * with given structure. The data is read for as long as there is data available in
+ * the byteArray and the structure hasn't been filled yet.
+ *
+ * This method returns a structure containing:
+ * a data Object which is a filled data structure, can be null when parsing failed
+ * a numerical end offset which indicates at what offset in given file the
+ * structure's definition has ended. This can be used for subsequent read operations
+ * where binary data is retrieved.
+ *
+ * @param {Uint8Array} byteArray
+ * @param {Object} structure key/values where key is the target name of the
+ *                 property and the value is one of the enumerated types listed above.
+ * @param {Number=} offset to read from, optional and defaults to 0
+ * @return {{
+ *     data: Object,
+ *     end: Number
+ * }}
+ */
+export function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
+    isLittleEndian(); // lazily perform endianness check
+
+    const total         = byteArray.length;
+    const structureKeys = Object.keys( structureDefinition );
+    const totalKeys     = structureKeys.length;
+    let keyIndex        = 0;
+
+    const out = {
+        data: {},
+        end: offset
+    };
+console.log(byteArray.slice(0, total ));
+    let i = Math.max( 0, offset );
+    for ( i; i < total && keyIndex < totalKeys; ) {
+        const key            = structureKeys[ keyIndex ];
+        const typeDefinition = structureDefinition[ key ];
+        const result = getDataForType( typeDefinition, byteArray, i );
+
+        if ( result.value === undefined ) {
+            out.error = true;
+            return out; // failed to read data
+        }
+
+        out.data[ key ] = result.value;
+        i = result.offset;
+        ++keyIndex;
+    }
+    out.end = i;
+
+    // TODO: count if end is equal to the expected size
+
+    return out;
+};
+
+/**
+ * Same as above, with the exception that the supplied data is base64 content
+ */
+export function parseBase64( base64, structureDefinition, offset ) {
+    let byteArray;
+    try {
+        byteArray = Uint8Array.from( window.atob( base64.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
+    } catch {
+        return NO_RESULT;
+    }
+    return parseByteArray( byteArray, structureDefinition, offset );
+};
+
+/**
+ * Same as above, with the exception that it works directly on a given File.
+ * Note this function is asynchronous as the File has to be read first. In case
+ * the file could not be parsed, the Promise is rejected.
+ */
+export async function parseFile( fileReference, structureDefinition, offset = 0 ) {
+    return new Promise( async ( resolve, reject ) => {
+        let byteArray;
+        try {
+            byteArray = await fileToByteArray(
+                fileReference, offset, getSizeForStructure( structureDefinition )
+            );
+        } catch {
+            reject();
+        }
+        resolve( parseByteArray( byteArray, structureDefinition, offset ));
+    });
+};
+
+/**
+ * Converts given File to a ByteArray of requested size
+ */
+export async function fileToByteArray( fileReference, offset = 0, size = fileReference.size ) {
+    const reader = new FileReader();
+    return new Promise(( resolve, reject ) => {
+        reader.onload = ({ target }) => {
+            resolve( new Uint8Array( target.result ));
+        }
+        reader.onerror = reject;
+        reader.readAsArrayBuffer( fileReference.slice( offset, Math.min( fileReference.size, offset + size )));
+    });
+}
+
+/* internal methods */
 
 /**
  * We'll be using TypedArrays meaning read data will be converted to the
@@ -160,98 +263,52 @@ function combineBytes( offset, length, amount, fn ) {
 }
 
 /**
- * Parse a byte array and map the data starting from the given offset to an Object
- * with given structure. The data is read for as long as there is data available in
- * the byteArray and the structure hasn't been filled yet.
- *
- * This method returns a structure containing:
- * a data Object which is a filled data structure, can be null when parsing failed
- * a numerical end offset which indicates at what offset in given file the
- * structure's definition has ended. This can be used for subsequent read operations
- * where binary data is retrieved.
- *
- * @param {Uint8Array} byteArray
- * @param {Object} structure key/values where key is the target name of the
- *                 property and the value is one of the enumerated types listed above.
- * @param {Number=} offset to read from, optional and defaults to 0
- * @return {{
- *     data: Object,
- *     end: Number
- * }}
+ * Calculates the size in bytes for given structure
  */
-function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
-    const total         = byteArray.length;
-    const structureKeys = Object.keys( structureDefinition );
-    const totalKeys     = structureKeys.length;
-    let keyIndex        = 0;
+function getSizeForStructure( structureDefinition ) {
+    let size = 0;
+    Object.values( structureDefinition ).forEach( typeDefinition => {
+        const isList = Array.isArray( typeDefinition );
+        const type   = isList ? typeDefinition[ 0 ] : typeDefinition;
+        const length = isList ? typeDefinition[ 1 ] : 1;
 
-    const out = {
-        data: {},
-        end: offset
-    };
-
-    let i = Math.max( 0, offset );
-    for ( i; i < total && keyIndex < totalKeys; ) {
-        const key            = structureKeys[ keyIndex ];
-        const typeDefinition = structureDefinition[ key ];
-        const result = getDataForType( typeDefinition, byteArray, i );
-
-        if ( result.value === undefined ) {
-            out.error = true;
-            return out; // failed to read data
+        switch ( type ) {
+            case types.CHAR:
+            case types.BYTE:
+            case types.INT8:
+            case types.UINT8:
+                size += length;
+                break;
+            case types.SHORT:
+            case types.INT16:
+            case types.UINT16:
+                size += ( length * 2 );
+                break;
+            case types.INT24:
+            case types.UINT24:
+                size += ( length * 3 );
+                break;
+            case types.INT32:
+            case types.UINT32:
+            case types.LONG:
+            case types.ULONG:
+            case types.FLOAT:
+            case types.UFLOAT:
+            case types.FLOAT32:
+            case types.UFLOAT32:
+                size += ( length * 4 );
+                break;
+            case types.LONGLONG:
+            case types.ULONGLONG:
+            case types.DOUBLE:
+            case types.UDOUBLE:
+            case types.FLOAT64:
+            case types.UFLOAT64:
+                size += ( length * 8 );
+                break;
+            default:
+                throw new Error(`Unsupported date type ${type}`);
         }
-
-        out.data[ key ] = result.value;
-        i = result.offset;
-        ++keyIndex;
-    }
-    out.end = i;
-console.warn(byteArray.slice(20, 22));
-    // TODO: count if end is equal to the expected size
-
-    return out;
-};
-
-/**
- * Same as above, with the exception that the supplied data is base64 content
- */
-function parseBase64( base64, structureDefinition, offset ) {
-    let byteArray;
-    try {
-        byteArray = Uint8Array.from( window.atob( base64.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
-    } catch {
-        return NO_RESULT;
-    }
-    return parseByteArray( byteArray, structureDefinition, offset );
-};
-
-/**
- * Same as above, with the exception that it works directly on a given File.
- * Note this function is asynchronous as the File has to be read first. In case
- * the file could not be parsed, the Promise is rejected.
- */
-async function parseFile( fileReference, structureDefinition, offset ) {
-    const reader = new FileReader();
-    return new Promise(( resolve, reject ) => {
-        reader.onload = ({ target }) => {
-            const result = parseByteArray( new Uint8Array( target.result ), structureDefinition, offset );
-            if ( !result ) {
-                reject();
-            } else {
-                resolve( result );
-            }
-        }
-        reader.onerror = reject;
-        reader.readAsArrayBuffer( fileReference );
     });
-};
-
-/* export API */
-
-export default {
-    isSupported,
-    types,
-    parseByteArray,
-    parseBase64,
-    parseFile
-};
+    return size;
+}

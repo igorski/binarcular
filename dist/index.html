@@ -1,0 +1,38 @@
+<!doctype html><html><head><title>Getting Started</title></head><body><form><fieldset><label for="fileInput">Select a file</label> <input type="file" id="fileInput"/></fieldset></form><script src="typedFileParser.min.js"></script></body><script type="module">import typedFileParser from './src/index.js';
+
+      const { CHAR, INT8, INT16, INT32 } = typedFileParser.types;
+
+      const jpegHeader = Object.freeze({
+          startOfImageMarker: INT16,
+          applicationUseMarker: INT16,
+          length: INT16,
+          identifier: [ CHAR, 4 ],
+          version: INT16,
+          xDensity: INT16,
+          yDensity: INT16,
+          xThumbnail: INT16,
+          yThumbnail: INT16
+      });
+
+      const wavHeader = Object.freeze({
+          type: [ CHAR, 4 ],
+          size: INT32,
+          format: [ CHAR, 4 ],
+          formatName: [ CHAR, 4 ],
+          formatLength: INT32,
+          audioFormat: INT16,
+          channelAmount: INT16,
+          sampleRate: INT32,
+          bytesPerSecond: INT32,
+          blockAlign: INT16,
+          bitsPerSample: INT16,
+          dataChunkId: [ CHAR, 4 ],
+          dataChunkSize: INT32
+      });
+
+      document.querySelector("#fileInput").addEventListener('input', async event => {
+          const { files } = event.target;
+          const file      = files[ 0 ];
+
+          console.warn( await typedFileParser.parseFile( file, jpegHeader, 0 ));
+      });</script></html>

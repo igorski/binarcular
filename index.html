@@ -7,29 +7,28 @@
       <form>
           <fieldset>
               <label for="fileInput">Select a file</label>
-              <input type="file" id="fileInput" />
+              <input type="file" accept="image/jpeg,audio/wav" id="fileInput" />
           </fieldset>
       </form>
   </body>
   <script type="module">
-      import typedFileParser from './src/index.js';
+      import { types, parseFile } from './src/index.js';
+      const { CHAR, INT8, INT16, INT32 } = types;
 
-      const { CHAR, INT8, INT16, INT32 } = typedFileParser.types;
-
-      const jpegHeader = Object.freeze({
-          startOfImageMarker: INT16,
-          applicationUseMarker: INT16,
+      const jpegHeader = {
+          startOfImageMarker: INT16,   // should be 0xffd8
+          applicationUseMarker: INT16, // should be 0xffe0
           length: INT16,
-          identifier: [ CHAR, 4 ],
-          version: INT16,
+          identifier: [ CHAR, 5 ],  // should be "JFIF" with null byte terminator
+          version: [ INT8, 2 ],     // first byte major, seocond minor version
           xDensity: INT16,
           yDensity: INT16,
           xThumbnail: INT16,
           yThumbnail: INT16
-      });
+      };
 
-      const wavHeader = Object.freeze({
-          type: [ CHAR, 4 ],
+      const wavHeader = {
+          type: [ CHAR, 4 ], // should be "RIFF"
           size: INT32,
           format: [ CHAR, 4 ],
           formatName: [ CHAR, 4 ],
@@ -42,13 +41,14 @@
           bitsPerSample: INT16,
           dataChunkId: [ CHAR, 4 ],
           dataChunkSize: INT32
-      });
+      };
 
       document.querySelector("#fileInput").addEventListener('input', async event => {
           const { files } = event.target;
           const file      = files[ 0 ];
 
-          console.warn( await typedFileParser.parseFile( file, jpegHeader, 0 ));
+          const header = file.type === 'image/jpeg' ? jpegHeader : wavHeader;
+          console.warn( await parseFile( file, header ));
       });
 
   </script>

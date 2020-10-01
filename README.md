@@ -1,5 +1,11 @@
-typed-file-parser
-=================
+# typed-file-parser
+
+A small library that allows you to read the contents of a binary file into an
+Object structure, doing all the nasty type conversion for you.
+
+A practical use case being validating whether a file header contains all the
+appropriate fields and values. Or a more advanced use case being parsing meta
+data from a file to determine where the meaningful data is stored.
 
 ## Defining a structure
 
@@ -13,10 +19,10 @@ An example structure that defines the header of a .WAV file (see http://soundfil
 would look like:
 
 ```
-import typedFileParser from 'typed-file-parser';
-const { CHAR, INT16, INT32 } = typedFileParser.types;
+import { types } from 'typed-file-parser';
+const { CHAR, INT16, INT32 } = types;
 
-const wavHeader = Object.freeze({
+const wavHeader = {
     type: [ CHAR, 4 ],
     size: INT32,
     format: [ CHAR, 4 ],
@@ -30,13 +36,15 @@ const wavHeader = Object.freeze({
     bitsPerSample: INT16,
     dataChunkId: [ CHAR, 4 ],
     dataChunkSize: INT32
-});
+};
 ```
 
 Note that the order of the keys (and more importantly: their type definition) should match
 the order of the values as described the particular file's type!
 
-_Object.freeze()_ here is used to indicate that this is a static definition and shouldn't change.
+All available types are listed in the _{ types }_ export. Note that definitions
+for _CHAR_ will return as a String. If you want an 8-bit integer/byte value, use
+_BYTE_ or _INT8_ instead.
 
 ## Reading a chunk of data into an Object of a specific structure type
 
@@ -57,56 +65,66 @@ Where:
 * _fileReference_ is the file to parse (one of File, Uint8Array or String)
 * _structureDefinition_ is an Object defining a structure (as described above)
 * _offset_ is a numerical index of where in the file's byte Array reading should start
+  this defaults to 0 to start reading from the beginning of the file.
 
 ### Example
 
 If we intend to parse a .WAV audio file using the structure definition as defined
-above, we can read the header like so (let's assume here the file has already
-been read as a base64 String):
+above, we can read the header like so:
 
 ```
-import typedFileParser from 'typed-file-parser';
-const { parseBase64 } = typedFileParser;
-
-const { data, end } = parseBase64( waveFileAsBase64, wavHeader, 0 );
-console.log( data ); // will contain the properties of a WAV file header
-console.log( offset ); // will describe the end offset of the header ()
-```
-
-If all has been read successfully, _data_ is not null but an Object that follows
-the structure of _wavHeader_ and is populated with the actual file data.
-
-_end_ describes at what offset in given file the structure's definition has ended.
-This can be used for subsequent read operations where binary data is retrieved.
-In the instance of reading a wave file, this basically means that, depending on
-WAV file type, an Array consisting of either INT16 or FLOAT32 can be read from
-that offset.
-
-#### A note on reading from File reference
-
-Remember when using _parseFile_ that the method is asynchronous:
-
-```
-const { parseFile } = TypedFileParser;
-
-async function parseFileHeader() {
-    const { data, end } = await parseFile( fileReference, structureDefinition, offset );
-    ...do stuff with data (check for null!)
+import { parseFile } from 'typed-file-parser';
+async function readWaveHeader( fileReference ) {
+    const { data, end, error } = await parseFile( fileReference, wavHeader );
+    console.log( data );  // will contain the properties of a WAV file header
+    console.log( end );   // will describe the end offset of the header ()
+    console.log( error ); // when defined, file reading error occurred
 }
 ```
 
-This can be executed as the callback from an _input[type=file]_ after the user
-has selected their file.
+If all has been read successfully, _data_ is an Object that follows
+the structure of _wavHeader_ and is populated with the actual file data.
+
+_end_ describes at what offset in given file the structure's definition has ended.
+This can be used for subsequent read operations where binary data is retrieved,
+should you need to do so. In the example of reading a wave file, this could imply
+that, depending on WAV file type, an Array consisting of either INT16 or FLOAT32
+can be read from that offset.
+
+In case of an error, the error Object will have been defined. This indicates
+that an error occurred during parsing. The _data_ Object will be populated
+with all data that could've been harvested up until the error occurred.
+
+You can also view the demo provided in this repository's _index.html_ file.
+
+## Performance
+
+Depending on the files you're working with, memory allocation can be a problem.
+The parse methods will only read the block that is requested (e.g. from the
+requested offset and for the size of the requested structureDefinition) and
+should be light on resources.
+
+Depending on your use case, you might take additional steps which should be
+taking the following guidelines into consideration:
+
+* Use base64 only when you have no choice as a base64 String describes the
+  file in its entirety. Also, the way JavaScript handles Strings is by
+  allocating the entire value (and not by reference!)
+* If you intend to do multiple reads on a file (for instance: first reading
+  its header to determine where in the file the meaningful content begins) it
+  is recommended to use the _fileToByteArray_-method to create a single
+  reusable byteArray and use the _parseByteArray_-method instead.
 
 ## Compatibility
 
-_type-file-parser_ should work fine on Internet Explorer 10 and up. You can
+_typed-file-parser_ should work fine on Internet Explorer 10 and up. You can
 test for this by querying the result of the _isSupported()_-method:
 
 ```
-import TypedFileParser from 'type-file-parser';
-
-if (TypedFileParser.isSupported()) {
+import { isSupported } from 'typed-file-parser';
+if ( isSupported() ) {
     ...do stuff!
+} else {
+    ...do other, less cool stuff!
 }
 ```
