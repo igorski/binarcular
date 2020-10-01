@@ -7,6 +7,61 @@ A practical use case being validating whether a file header contains all the
 appropriate fields and values. Or a more advanced use case being parsing meta
 data from a file to determine where the meaningful data is stored.
 
+## Compatibility
+
+_typed-file-parser_ should work fine on Internet Explorer 10 and up. You can
+test for this by querying the result of the _isSupported()_-method:
+
+```
+import { isSupported } from 'typed-file-parser';
+if ( isSupported() ) {
+    ...do stuff!
+} else {
+    ...do other, less cool stuff!
+}
+```
+
+## Installation
+
+You can get it via NPM:
+
+```
+npm install typed-file-parser
+```
+
+### Project integration
+
+The parser is compatible with CommonJS, ES6 modules, AMD/RequireJS or can be included in a document via script tags.
+See the contents of the _/dist/_ folder and include as your project sees fit.
+
+## Build instructions
+
+The project dependencies are maintained by NPM, you can resolve them using:
+
+```
+npm install
+```
+
+When using CommonJS or ES6 modules for your project, it is recommended to require/import the source code directly.
+However, the project can also be built directly for the browser using a simple NPM task:
+
+```
+npm run build
+```
+
+After which a folder dist/ is created which contains the prebuilt AMD/RequireJS library as well as a script that can be included directly in a document.
+The source code is transpiled to ES5 for maximum browser compatibility.
+
+## Unit testing
+
+Unit tests are run via jest, you can run the tests by running:
+
+```
+npm run test
+```
+
+Unit tests go in the ./test-folder. The file name for a unit test must be equal to the file it is testing, but contain the suffix ".spec", e.g. functions.js should have a test file functions.spec.js.
+
 ## Defining a structure
 
 Defining a structure is nothing more than declaring an Object where the keys
@@ -116,17 +171,3 @@ taking the following guidelines into consideration:
   its header to determine where in the file the meaningful content begins) it
   is recommended to use the _fileToByteArray_-method to create a single
   reusable byteArray and use the _parseByteArray_-method instead.
-
-## Compatibility
-
-_typed-file-parser_ should work fine on Internet Explorer 10 and up. You can
-test for this by querying the result of the _isSupported()_-method:
-
-```
-import { isSupported } from 'typed-file-parser';
-if ( isSupported() ) {
-    ...do stuff!
-} else {
-    ...do other, less cool stuff!
-}
-```

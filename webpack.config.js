@@ -1,6 +1,7 @@
-const path              = require('path');
-const webpack           = require('webpack');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+const path                   = require('path');
+const webpack                = require('webpack');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const HtmlWebpackPlugin      = require('html-webpack-plugin');
 
 // Is the current build a development build
 const IS_DEV = (process.env.NODE_ENV === 'dev');
@@ -11,7 +12,7 @@ const dirApp    = path.join(__dirname, 'src');
 /**
  * Webpack Configuration
  */
-module.exports = {
+const config = {
     entry: {
         typedFileParser: path.join(dirApp, 'index')
     },
@@ -21,14 +22,6 @@ module.exports = {
             dirApp
         ]
     },
-    plugins: [
-        new webpack.DefinePlugin({
-            IS_DEV: IS_DEV
-        }),
-        new HtmlWebpackPlugin({
-            template: path.join(__dirname, 'index.html')
-        })
-    ],
     module: {
         rules: [
             // BABEL
@@ -43,3 +36,41 @@ module.exports = {
         ]
     }
 };
+
+const browserConfig = {
+    ...config,
+    plugins: [
+        new CleanWebpackPlugin(),
+        new HtmlWebpackPlugin({
+            template: path.join(__dirname, 'index.html')
+        })
+    ],
+    output: {
+        filename: 'typed-file-parser.min.js',
+        path: path.resolve( __dirname, 'dist' )
+    }
+};
+
+const amdConfig = {
+    ...config,
+    output: {
+        filename: 'typed-file-parser.amd.js',
+        path: path.resolve( __dirname, 'dist' ),
+        libraryTarget: 'amd',
+        umdNamedDefine: true
+    }
+};
+
+const moduleConfig = {
+    ...config,
+    output: {
+        filename: 'typed-file-parser.js',
+        path: path.resolve( __dirname, 'dist' ),
+        libraryTarget: 'commonjs-module',
+        umdNamedDefine: true
+    }
+};
+
+module.exports = [
+    browserConfig, amdConfig, moduleConfig
+];

@@ -4,10 +4,10 @@
   "description": "An extension that allows reading file",
   "main": "src/typed-file-parser.js",
   "scripts": {
-    "dev": "cross-env NODE_ENV=dev webpack-dev-server --progress --mode development --config webpack.config.dev.js",
-    "build": "webpack -p --progress --mode production --config webpack.config.build.js",
-    "test": "webpack -p --progress --mode development --config webpack.config.test.js && npm run dev",
-    "prepublish": "npm run build"
+    "dev": "cross-env NODE_ENV=dev webpack-dev-server --progress --mode development --config webpack.config.js",
+    "build": "webpack -p --progress --mode production --config webpack.config.js",
+    "test": "jest",
+    "prepublish": "npm run test && npm run build"
   },
   "keywords": [],
   "author": "Igor Zinken <igor.zinken@igorski.nl> (https://www.igorski.nl/)",
@@ -20,6 +20,7 @@
     "clean-webpack-plugin": "^3.0.0",
     "cross-env": "^7.0.2",
     "html-webpack-plugin": "^4.5.0",
+    "jest": "^26.4.2",
     "webpack": "^4.44.2",
     "webpack-cli": "^3.3.12",
     "webpack-dev-server": "^3.11.0",
