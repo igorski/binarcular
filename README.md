@@ -21,6 +21,9 @@ if ( isSupported() ) {
 }
 ```
 
+NOTE: if you require support for 64-bit types there are [additional requirements](https://caniuse.com/?search=bigint).
+Pass boolean _true_ to _isSupported()_ to determine whether the environment supports 64-bit conversion.
+
 ## Installation
 
 You can get it via NPM:
@@ -135,7 +138,7 @@ async function readWaveHeader( fileReference ) {
     const { data, end, error } = await parseFile( fileReference, wavHeader );
     console.log( data );  // will contain the properties of a WAV file header
     console.log( end );   // will describe the end offset of the header ()
-    console.log( error ); // when defined, file reading error occurred
+    console.log( error ); // when true, a file reading error occurred
 }
 ```
 

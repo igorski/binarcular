@@ -1,9 +1,13 @@
 /**
  * Whether the environment supports use of typed-file-parser
+ * Note that for 64-bit usage there are additional requirements
  */
-export function isSupported( scope = window ) {
+export function isSupported( use64bit = false, scope = window ) {
+    if ( use64bit && typeof scope.BigInt !== 'function' ) {
+        return false;
+    }
     return [
-        'FileReader', 'atob', 'Uint8Array'
+        'FileReader', 'atob', 'Uint8Array', 'DataView'
     ].every( fn => typeof scope[fn] === 'function' );
 };
 
@@ -18,8 +22,8 @@ const TYPE_NAMES = [
     'BYTE', 'INT8', 'UINT8',
     'SHORT', 'INT16', 'UINT16',
     'INT24', 'UINT24',
-    'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'UFLOAT', 'FLOAT32', 'UFLOAT32',
-    'LONGLONG', 'ULONGLONG', 'DOUBLE', 'UDOUBLE', 'FLOAT64', 'UFLOAT64',
+    'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'FLOAT32',
+    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64'
 ];
 export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
     acc[ name ] = name;
@@ -29,9 +33,22 @@ export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
 // JavaScript doesn't distinguish between integer or floating point values in its
 // Number type, here we list the types that should be converted to floating point
 const FLOATING_POINT_TYPES = [
-    'FLOAT', 'UFLOAT', 'FLOAT32', 'UFLOAT32',
-    'DOUBLE', 'UDOUBLE', 'FLOAT64', 'UFLOAT64'
+    'FLOAT', 'FLOAT32', 'DOUBLE', 'FLOAT64'
 ];
+// JavaScript Number are always signed. Here we list the types that should
+// be converted to unsigned values.
+const UNSIGNED_TYPES = [
+    'UINT8',
+    'UINT16',
+    'UINT24',
+    'UINT32', 'ULONG',
+    'UINT64', 'ULONGLONG'
+];
+const SIGNED_TO_UNSIGNED_8  = 127;
+const SIGNED_TO_UNSIGNED_16 = 32768;
+const SIGNED_TO_UNSIGNED_24 = 8388607;
+const SIGNED_TO_UNSIGNED_32 = 1073741823;
+const SIGNED_TO_UNSIGNED_64 = 4.611686e+18;
 
 /**
  * Parse a byte array and map the data starting from the given offset to an Object
@@ -61,7 +78,8 @@ export function parseByteArray( byteArray, structureDefinition = {}, offset = 0 
 
     const out = {
         data: {},
-        end: offset
+        end: offset,
+        error: false
     };
 
     let i = Math.max( 0, offset );
@@ -161,7 +179,7 @@ export async function fileToByteArray( fileReference, offset = 0, size = fileRef
 
 /**
  * We'll be using TypedArrays meaning read data will be converted to the
- * endianness of the environment. Calculate the endianness upfront.
+ * endianness of the environment. We lazily calculate this when required.
  */
 let _isLittleEndian = undefined;
 function isLittleEndian() {
@@ -174,6 +192,18 @@ function isLittleEndian() {
         _isLittleEndian = c[ 0 ] === 0xef;
     }
     return _isLittleEndian;
+}
+
+/**
+ * For floating point conversions we can leverage the methods of the DataView
+ * class. Instead of constantly recreating this we can lazily create and reuse one.
+ */
+let _dataView = undefined;
+function getDataView() {
+    if ( _dataView === undefined ) {
+        _dataView = new DataView( new Uint8Array( 8 ).buffer ); // the max value we deal with is 64-bits (8 bytes)
+    }
+    return _dataView;
 }
 
 /**
@@ -195,6 +225,8 @@ function getDataForType( typeDefinition, byteArray, offset ) {
     }
     const littleEndian = isDefinitionForLittleEndian( typeDefinition );
     const isFloat      = FLOATING_POINT_TYPES.includes( type );
+    const isUnsigned   = UNSIGNED_TYPES.includes( type );
+    const dataView     = isFloat ? getDataView() : null;
 
     switch ( type ) {
         default:
@@ -205,7 +237,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         // 8-bit String type
         case types.CHAR:
             if ( length === 1 ) {
-                out.value = String.fromCharCode( byteArray[ offset ].toString( 16 ));
+                out.value = String.fromCharCode( byteArray[ offset ]);
             } else {
                 out.value = [...byteArray.slice( offset, offset + length )].map( byte => String.fromCharCode( byte )).join( '' );
             }
@@ -262,9 +294,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         case types.LONG:
         case types.ULONG:
         case types.FLOAT:
-        case types.UFLOAT:
         case types.FLOAT32:
-        case types.UFLOAT32:
             // we will need to combine four bytes into one value
             out.value = combineBytes( offset, length, 4, it => {
                 let value;
@@ -273,27 +303,39 @@ function getDataForType( typeDefinition, byteArray, offset ) {
                 } else {
                     value = (byteArray[ it ] << 24) | (byteArray[ it + 1 ] << 16) | (byteArray[ it + 2 ] << 8) | byteArray[ it + 3 ];
                 }
-                return isFloat ? value / 2147483647 : value;
+                if ( isFloat ) {
+                    dataView.setInt32( 0, value );
+                    return dataView.getFloat32();
+                }
+                return value;
             });
             out.offset += length * 4;
             break;
 
         // 64-bit Number types
+        case types.INT64:
+        case types.UINT64:
         case types.LONGLONG:
         case types.ULONGLONG:
         case types.DOUBLE:
-        case types.UDOUBLE:
         case types.FLOAT64:
-        case types.UFLOAT64:
             // we will need to combine eight bytes into one value
             out.value = combineBytes( offset, length, 8, it => {
-                let value;
-                if ( littleEndian ) {
-                    value = (byteArray[ it + 7 ] << 56) | (byteArray[ it + 6 ] << 48) | (byteArray[ it + 5 ] << 40) | (byteArray[ it + 4 ] << 32) | (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
-                } else {
-                    value = (byteArray[ it ] << 56) | (byteArray[ it + 1 ] << 48) | (byteArray[ it + 2 ] << 40) | (byteArray[ it + 3 ] << 32) | (byteArray[ it + 4 ] << 24) | (byteArray[ it + 5 ] << 16) | (byteArray[ it + 6 ] << 8) | byteArray[ it + 7 ];
+                // as JavaScripts MAX_SAFE_INTEGER is 53-bits we need to perform some
+                // magic with a custom DataView here (which gives this conversion some overhead)
+                const bytes = byteArray.slice( it, it + 8 );
+                const dataView = new DataView( bytes.buffer );
+
+                // tiny loss of precision for a max value (8 times 0xff)
+                // this returns 18,446,744,073,709,552,000  insteadof 18,446,744,073,709,551,615 (max uint64 value)
+                // also note endianness used here is from the client machine and not from the typeDefinition as DataView handles this
+                const value = dataView.getUint32( 0, _isLittleEndian ) + 2 ** 32 * dataView.getUint32( 4, _isLittleEndian );
+
+                if ( isFloat ) {
+                    dataView.setBigInt64( 0, BigInt( value ));
+                    return dataView.getFloat64();
                 }
-                return isFloat ? value / 9223372036854775807 : value;
+                return value;
             });
             out.offset += length * 8;
             break;
@@ -371,21 +413,19 @@ function getSizeForStructure( structureDefinition ) {
             case types.LONG:
             case types.ULONG:
             case types.FLOAT:
-            case types.UFLOAT:
             case types.FLOAT32:
-            case types.UFLOAT32:
                 size += ( length * 4 );
                 break;
+            case types.INT64:
+            case types.UINT64:
             case types.LONGLONG:
             case types.ULONGLONG:
             case types.DOUBLE:
-            case types.UDOUBLE:
             case types.FLOAT64:
-            case types.UFLOAT64:
                 size += ( length * 8 );
                 break;
             default:
-                throw new Error(`Unsupported data type ${type}`);
+                throw new Error( `Unsupported data type "${type}"` );
         }
     });
     return size;
