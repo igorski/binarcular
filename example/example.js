@@ -116,7 +116,7 @@ async function attemptWavCorrection( byteArray, headerData ) {
     // combine the separate headers into the "fixed" one
     return {
         data: { ...headerData, ...secondAttempt.data },
-        byteArray
+        byteArray: secondAttempt.byteArray
     };
 }
 

@@ -31,7 +31,7 @@ const config = {
                 // inline Workers as Blobs
 
                 test: /\.worker\.js$/,
-                use: { loader: 'worker-loader', options: { inline: 'fallback' } }
+                use: { loader: 'worker-loader', options: { inline: 'no-fallback' } }
             },
             {
                 // Babel
@@ -60,7 +60,7 @@ const browserConfig = {
         })
     ],
     output: {
-        filename: 'typed-file-parser.min.js',
+        filename: 'example.min.js',
         path: path.resolve( __dirname, 'dist' )
     }
 };

@@ -2,6 +2,8 @@
   "name": "typed-file-parser",
   "version": "0.1.0",
   "description": "An extension that allows reading file",
+  "author": "Igor Zinken <igor.zinken@igorski.nl> (https://www.igorski.nl/)",
+  "license": "MIT",
   "keywords": [
     "binary",
     "file",
@@ -25,8 +27,6 @@
   "engines": {
     "node": ">=10.0.0"
   },
-  "author": "Igor Zinken <igor.zinken@igorski.nl> (https://www.igorski.nl/)",
-  "license": "MIT",
   "devDependencies": {
     "@babel/core": "7.9.6",
     "@babel/plugin-transform-runtime": "^7.9.6",

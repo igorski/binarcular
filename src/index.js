@@ -107,18 +107,18 @@ export async function parseFile( fileReference, structureDefinition, offset = 0 
  * Returns the offset at which content was found.
  */
 export async function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
-    let compareByteArray = stringOrByteArray;
-    // transform String to bytes
-    if ( typeof stringOrByteArray === 'string' ) {
-        compareByteArray = new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )));
-    }
+    const compareByteArray = ( typeof stringOrByteArray === 'string' ) ?
+        // transform String to bytes
+        new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )))
+    : stringOrByteArray;
+
     return new Promise(( resolve, reject ) => {
         invokeWorker( resolve, reject, {
             cmd: 'scan',
             byteArray,
             compareByteArray,
             offset,
-        }, [ byteArray.buffer, compareByteArray.buffer ]);
+        }, [ byteArray.buffer ]);
     });
 }
 
