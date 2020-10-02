@@ -39,26 +39,50 @@ export function isSupported( use64bit = false, scope = window ) {
 };
 
 /**
- * Parse a byte array and map the data starting from the given offset to an Object
+ * Parse binary file and map the data starting from the given offset to an Object
  * with given structure. The data is read for as long as there is data available in
  * the byteArray and the structure hasn't been filled yet.
  *
  * This method returns a structure containing:
- * a data Object which is a filled data structure, can be null when parsing failed
+ * a data Object which is a filled data structure
  * a numerical end offset which indicates at what offset in given file the
  * structure's definition has ended. This can be used for subsequent read operations
  * where binary data is retrieved.
+ * a boolean indicating whether an error occured during parsing.
+ * a reference to the ByteArray used for reading. If input was Uint8Array, the
+ * calling context must update its reference with the returned byteArray as
+ * buffer ownership had been transferred to the Worker.
  *
- * @param {Uint8Array} byteArray
+ * @param {Uint8Array|File|String} input either byte array, file or base64 String
  * @param {Object} structure key/values where key is the target name of the
  *                 property and the value is one of the enumerated types listed above.
  * @param {Number=} offset to read from, optional and defaults to 0
  * @return {{
  *     data: Object,
- *     end: Number
+ *     end: Number,
+ *     error: Boolean,
+ *     byteArray: Uint8Array
  * }}
  */
-export async function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
+export async function parse( input, structureDefinition = {}, offset = 0 ) {
+    let byteArray = input;
+    try {
+        if ( typeof input === 'string' ) {
+            // convert base64 into byteArray
+            byteArray = Uint8Array.from( window.atob( input.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
+        } else if ( input instanceof File ) {
+            byteArray = await fileToByteArray(
+                input, offset, getSizeForStructure( structureDefinition )
+            );
+        }
+    } catch {
+        // I/O conversion Error, handled below
+    }
+
+    if ( !( byteArray instanceof Uint8Array )) {
+        throw new Error( `input should be either String, File or Uint8Array got ${typeof input} instead` );
+    }
+
     return new Promise(( resolve, reject ) => {
         invokeWorker( resolve, reject, {
             cmd: 'parse',
@@ -70,43 +94,11 @@ export async function parseByteArray( byteArray, structureDefinition = {}, offse
 };
 
 /**
- * Same as above, with the exception that the supplied data is base64 content
- */
-export async function parseBase64( base64, structureDefinition, offset ) {
-    let byteArray;
-    try {
-        byteArray = Uint8Array.from( window.atob( base64.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
-    } catch {
-        return { data: null, end: offset, error: true };
-    }
-    return await parseByteArray( byteArray, structureDefinition, offset );
-};
-
-/**
- * Same as above, with the exception that it works directly on a given File.
- * Note this function is asynchronous as the File has to be read first. In case
- * the file could not be parsed, the Promise is rejected.
- */
-export async function parseFile( fileReference, structureDefinition, offset = 0 ) {
-    return new Promise( async ( resolve, reject ) => {
-        let byteArray;
-        try {
-            byteArray = await fileToByteArray(
-                fileReference, offset, getSizeForStructure( structureDefinition )
-            );
-        } catch {
-            reject();
-        }
-        resolve( parseByteArray( byteArray, structureDefinition, offset ));
-    });
-};
-
-/**
  * Scan given ByteArray until bytes matching given stringOrByteArray are found,
  * starting from given offset (default to 0 for start of file).
  * Returns the offset at which content was found.
  */
-export async function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
+export async function seek( byteArray, stringOrByteArray, offset = 0 ) {
     const compareByteArray = ( typeof stringOrByteArray === 'string' ) ?
         // transform String to bytes
         new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )))
@@ -114,7 +106,7 @@ export async function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
 
     return new Promise(( resolve, reject ) => {
         invokeWorker( resolve, reject, {
-            cmd: 'scan',
+            cmd: 'seek',
             byteArray,
             compareByteArray,
             offset,

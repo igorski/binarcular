@@ -21,14 +21,14 @@ test for this by querying the result of the _isSupported()_-method:
 
 ```
 import { isSupported } from 'typed-file-parser';
-if ( isSupported() ) {
+if ( isSupported( optRequire64bitConversion = false ) ) {
     ...do stuff!
 } else {
     ...do other, less cool stuff!
 }
 ```
 
-NOTE: if you require support for 64-bit types there are [additional requirements](https://caniuse.com/?search=bigint). Pass boolean _true_ to _isSupported()_ to determine whether the environment supports 64-bit conversion.
+NOTE: if you require support for 64-bit types there are [additional requirements](https://caniuse.com/?search=bigint). Pass boolean _true_ for optional argument _optRequire64bitConversion_ to determine whether the environment supports 64-bit conversion.
 
 ## Installation
 
@@ -49,13 +49,13 @@ The module exports the following:
 
 ```
 import {
-    isSupported: fn( optUseBase64Boolean = false ),
-    types: Object<String>,
-    parseByteArray: async fn( uint8Array, structureDefinition, optReadOffset = 0 ),
-    parseFile: async fn( fileReference, structureDefinition, optReadOffset = 0 ),
-    parseBase64: async fn( base64string, structureDefinition, optReadOffset = 0),
-    scanUntil: async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0),
-    fileToByteArray: async fn( fileReference, optSliceOffset = 0, optSliceSize = fileReference.size )
+
+    isSupported:     fn( optUseBase64Boolean = false ),
+    types:           Object<String>,
+    parse:           async fn( dataSource, structureDefinition, optReadOffset = 0 ),
+    seek:            async fn( uint8Array,    searchStringOrByteArray, optReadOffset = 0),
+    fileToByteArray: async fn( file, optSliceOffset = 0, optSliceSize = file.size )
+
 } from 'typed-file-parser';
 ```
 
@@ -63,23 +63,17 @@ We'll look into each of these below:
 
 ### Reading a chunk of data into an Object of a specific structure type
 
-There are three different methods with which you can supply binary data for parsing:
-
-* _parseFile_ when file data is a reference to a File on the clients machine
-* _parseByteArray_ when file data is an Uint8Array
-* _parseBase64_ when file data is a base64 encoded String
-
-Each of the methods is asynchronous (returns a Promise) and has the same signature:
+The _parse_ method is reponsible for this:
 
 ```
-async parseFn( fileReference, structureDefinition, offset )
+async parse( dataSource, structureDefinition, optReadOffset = 0 );
 ```
 
 Where:
 
-* _fileReference_ is the file to parse (one of File, Uint8Array or String)
-* _structureDefinition_ is an Object defining a structure (as described above)
-* _offset_ is a numerical index of where in the file's ByteArray reading should start
+* _dataSource_ is the file to parse (can be either _File_, _Uint8Array_ or (base64 encoded) _String_)
+* _structureDefinition_ is an Object defining a structure (as described below)
+* _optReadOffset_ is a numerical index of where in the file's ByteArray reading should start
   this defaults to 0 to start reading from the beginning of the file.
 
 When the Promise resolves, the return is the following structure:
@@ -89,6 +83,7 @@ When the Promise resolves, the return is the following structure:
     data: Object,
     end: Number,
     error: Boolean,
+    byteArray: Uint8Array,
 }
 ```
 
@@ -96,19 +91,18 @@ If all has been read successfully, _data_ is an Object that follows
 the structure of _wavHeader_ and is populated with the actual file data.
 
 _end_ describes at what offset in given file the structure's definition has ended.
-This can be used for subsequent read operations where binary data is retrieved,
-should you need to do so. In the example of reading a wave file, this could imply
-that, depending on WAV file type, an Array consisting of either INT16 or FLOAT32
-can be read from that offset.
+This can be used for subsequent read operations where different data types are
+extracted from the binary data.
 
 If _error_ is true, this indicates that something went wrong during parsing. The _data_
 Object will be populated with all data that could've been harvested up until the error occurred.
 
-#### A note on parseByteArray
+#### A note on using Uint8Array as dataSource
 
-When using _parseByteArray_ an additional property is returned, namely _byteArray_ (_Uint8Array_).
-If you intend to reuse your ByteArray in your project, be sure to assign your byteArray
-reference to this returned Object. The rationale here is that for minimal overhead, the
+You can see that another property is defined in the result, namely _byteArray_ (_Uint8Array_).
+If the _dataSource_ for the parse method was a _Uint8Array_ which you intend to
+reuse inside your project, be sure to reassign your byteArray reference to the
+returned instance. The rationale here is that for minimal overhead, the
 ownership of the ByteArray's binary content is transferred during the read operations.
 
 ### Looking for a specific entry in a file
@@ -117,10 +111,10 @@ If you are working with a file where the content of interest is preceded by some
 metadata at an arbitrary point, it makes sense to first look for this metadata
 before reading the actual data of interest.
 
-For this purpose you can use _scanUntil_:
+For this purpose you can use _seek_:
 
 ```
-async scanUntil( uint8Array, searchStringOrByteArray, optReadOffset = 0 )
+async seek( uint8Array, searchStringOrByteArray, optReadOffset = 0 )
 ```
 
 where:
@@ -198,10 +192,10 @@ _BYTE_ or _INT8_ instead.
 We can now proceed to read the file:
 
 ```
-import { parseFile } from 'typed-file-parser';
+import { parse } from 'typed-file-parser';
 
 async function readWaveHeader( fileReference ) {
-    const { data, end, error } = await parseFile( fileReference, wavHeader, 0 );
+    const { data, end, error } = await parse( fileReference, wavHeader, 0 );
 
     console.log( data );  // will contain the properties of a WAV file header
     console.log( end );   // will describe the end offset of the header
@@ -232,8 +226,7 @@ taking the following guidelines into consideration:
 * If you intend to do multiple reads on a file (for instance: first reading
   its header to determine where in the file the meaningful content begins) it
   is recommended to use the _fileToByteArray_-method to create a single
-  reusable byteArray and use the _parseByteArray_-method instead. This also
-  makes sense if you need to read the file in its entirety.
+  reusable byteArray. This also makes sense if you need to read the file in its entirety.
 
 ## Build instructions
 

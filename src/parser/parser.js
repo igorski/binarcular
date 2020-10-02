@@ -264,7 +264,7 @@ export function parse( byteArray, structureDefinition, offset = 0 ) {
     return out;
 }
 
-export function scan( byteArray, compareByteArray, offset = 0 ) {
+export function seek( byteArray, compareByteArray, offset = 0 ) {
     const total        = byteArray.length;
     const searchLength = compareByteArray.length;
 

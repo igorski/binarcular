@@ -1,5 +1,5 @@
 import { types }       from '@/definitions/types';
-import { parse, scan } from '@/parser/parser';
+import { parse, seek } from '@/parser/parser';
 
 describe('Parser', () => {
     describe('When working with typed data types', () => {
@@ -283,19 +283,19 @@ describe('Parser', () => {
             });
         });
 
-        describe('and when scanning for specific content', () => {
+        describe('and when seeking specific content', () => {
             it('should return Infinity when content could not be found', () => {
-                const result = scan( binaryFile, new Uint8Array([ 0xff ])); // 0xff/255 not listed
+                const result = seek( binaryFile, new Uint8Array([ 0xff ])); // 0xff/255 not listed
                 expect( result ).toEqual( Infinity );
             });
 
             it('should be able to find the entry, searching from the start by default', () => {
-                const result = scan( binaryFile, new Uint8Array([ 16, 0 ]) );
+                const result = seek( binaryFile, new Uint8Array([ 16, 0 ]) );
                 expect( result ).toEqual( 16 );
             });
 
             it('should be able to find the entry when searching from a custom offset', () => {
-                const result = scan( binaryFile, new Uint8Array([ 16, 0 ]), 20 );
+                const result = seek( binaryFile, new Uint8Array([ 16, 0 ]), 20 );
                 expect( result ).toEqual( 34 );
             });
         });

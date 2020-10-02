@@ -20,7 +20,7 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import { parse, scan } from '@/parser/parser';
+import { parse, seek } from '@/parser/parser';
 
 /* public API */
 
@@ -45,9 +45,9 @@ function handleMessage({ data }) {
             }, [ byteArray.buffer ]);
             break;
 
-        case 'scan':
+        case 'seek':
             self.postMessage({
-                offset: scan( byteArray, data.compareByteArray, data.offset ),
+                offset: seek( byteArray, data.compareByteArray, data.offset ),
                 byteArray
             }, [ byteArray.buffer ]);
             break;
