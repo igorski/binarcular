@@ -20,6 +20,11 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import * as TypedFileParser from './src/index.js';
+import { isSupported, parse, seek, fileToByteArray } from './src/index.js';
 
-export TypedFileParser;
+export {
+    isSupported,
+    parse,
+    seek,
+    fileToByteArray
+};

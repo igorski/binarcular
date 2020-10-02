@@ -69,7 +69,7 @@ const browserConfig = {
 const amdConfig = {
     ...config,
     output: {
-        filename: 'typed-file-parser.amd.js',
+        filename: 'binarcular.amd.js',
         path: path.resolve( __dirname, 'dist' ),
         libraryTarget: 'amd',
         umdNamedDefine: true
@@ -79,7 +79,7 @@ const amdConfig = {
 const moduleConfig = {
     ...config,
     output: {
-        filename: 'typed-file-parser.js',
+        filename: 'binarcular.js',
         path: path.resolve( __dirname, 'dist' ),
         libraryTarget: 'commonjs-module',
         umdNamedDefine: true

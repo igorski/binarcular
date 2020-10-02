@@ -26,7 +26,7 @@
  export const types = dataTypes; // expose to the public
 
 /**
- * Whether the environment supports use of typed-file-parser
+ * Whether the environment supports use of binarcular
  * Note that for 64-bit usage there are additional requirements
  */
 export function isSupported( use64bit = false, scope = window ) {
