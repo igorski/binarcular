@@ -7,9 +7,12 @@ all inside your browser.
 
 Practical use cases are:
 
-* Validating whether a file header contains the appropriate description
+* Validating whether a file header contains the appropriate description, automatically
+  converted to the data types
 * Scanning a file for specific meta data
 * Using found meta data to locate where other meaningful data is stored... and extract it
+
+See API and Example below.
 
 ## Compatibility
 
@@ -37,38 +40,121 @@ npm install typed-file-parser
 
 ### Project integration
 
-The parser is compatible with CommonJS, ES6 modules, AMD/RequireJS or can be included in a document via script tags.
-See the contents of the _/dist/_ folder and include as your project sees fit.
+The parser is compatible with CommonJS / ES6 modules or can be included in a document
+using AMD/RequireJS. See the contents of the _/dist/_ folder and include as your project sees fit.
 
-## Build instructions
+## API
 
-The project dependencies are maintained by NPM, you can resolve them using:
-
-```
-npm install
-```
-
-When using CommonJS or ES6 modules for your project, it is recommended to require/import the source code directly.
-However, the project can also be built directly for the browser using a simple NPM task:
+The module exports the following:
 
 ```
-npm run build
+import {
+    isSupported: fn( optUseBase64Boolean = false ),
+    types: Object<String>,
+    parseByteArray: async fn( uint8Array, structureDefinition, optReadOffset = 0 ),
+    parseFile: async fn( fileReference, structureDefinition, optReadOffset = 0 ),
+    parseBase64: async fn( base64string, structureDefinition, optReadOffset = 0),
+    scanUntil: async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0),
+    fileToByteArray: async fn( fileReference, optSliceOffset = 0, optSliceSize = fileReference.size )
+} from 'typed-file-parser';
 ```
 
-After which a folder dist/ is created which contains the prebuilt AMD/RequireJS library as well as a script that can be included directly in a document.
-The source code is transpiled to ES5 for maximum browser compatibility.
+We'll look into each of these below:
 
-## Unit testing
+### Reading a chunk of data into an Object of a specific structure type
 
-Unit tests are run via jest, you can run the tests by running:
+There are three different methods with which you can supply binary data for parsing:
+
+* _parseFile_ when file data is a reference to a File on the clients machine
+* _parseByteArray_ when file data is an Uint8Array
+* _parseBase64_ when file data is a base64 encoded String
+
+Each of the methods is asynchronous (returns a Promise) and has the same signature:
 
 ```
-npm run test
+async parseFn( fileReference, structureDefinition, offset )
 ```
 
-Unit tests go in the ./test-folder. The file name for a unit test must be equal to the file it is testing, but contain the suffix ".spec", e.g. functions.js should have a test file functions.spec.js.
+Where:
 
-## Defining a structure
+* _fileReference_ is the file to parse (one of File, Uint8Array or String)
+* _structureDefinition_ is an Object defining a structure (as described above)
+* _offset_ is a numerical index of where in the file's ByteArray reading should start
+  this defaults to 0 to start reading from the beginning of the file.
+
+When the Promise resolves, the return is the following structure:
+
+```
+{
+    data: Object,
+    end: Number,
+    error: Boolean,
+}
+```
+
+If all has been read successfully, _data_ is an Object that follows
+the structure of _wavHeader_ and is populated with the actual file data.
+
+_end_ describes at what offset in given file the structure's definition has ended.
+This can be used for subsequent read operations where binary data is retrieved,
+should you need to do so. In the example of reading a wave file, this could imply
+that, depending on WAV file type, an Array consisting of either INT16 or FLOAT32
+can be read from that offset.
+
+If _error_ is true, this indicates that something went wrong during parsing. The _data_
+Object will be populated with all data that could've been harvested up until the error occurred.
+
+#### A note on parseByteArray
+
+When using _parseByteArray_ an additional property is returned, namely _byteArray_ (_Uint8Array_).
+If you intend to reuse your ByteArray in your project, be sure to assign your byteArray
+reference to this returned Object. The rationale here is that for minimal overhead, the
+ownership of the ByteArray's binary content is transferred during the read operations.
+
+### Looking for a specific entry in a file
+
+If you are working with a file where the content of interest is preceded by some
+metadata at an arbitrary point, it makes sense to first look for this metadata
+before reading the actual data of interest.
+
+For this purpose you can use _scanUntil_:
+
+```
+async scanUntil( uint8Array, searchStringOrByteArray, optReadOffset = 0 )
+```
+
+where:
+
+_uint8Array_ is the ByteArray containing the binary data.
+_searchStringOrByteArray_ can be either a String (in case the meta data is a
+character sequence) or a Uint8Array holding a byte sequence that functions as the 'search query'
+_optReadOffset_ determines the offset within the data from where to start searching, this
+defaults to 0 to read from the start.
+
+The method returns a numerical index at which the data was found or _Infinity_
+is no matches were found.
+
+### Converting a File reference to a ByteArray
+
+```
+async fileToByteArray( fileReference, optSliceOffset = 0, optSliceSize = fileReference.size )
+```
+
+where:
+
+_fileReference_ is the File of which the contents should be read into a _Uint8Array_.
+_optSliceOffset_ is the optional offset from where to read the dat, defaults to 0 to
+start from the beginning.
+_optSliceSize_ is the optional size of the resulting ByteArray. This defaults to the
+size of the file to read the file in its entirety. When using custom _optSliceOffset_s
+overflow checking is performed to prevent reading out of the file boundaries.
+
+## Example
+
+Let's say we want to read binary data for a well known proprietary format.
+First up we will get to...
+
+### Define a structure
 
 Defining a structure is nothing more than declaring an Object where the keys
 define a name meaningful to your purpose and the value is a String describing:
@@ -81,7 +167,7 @@ define a name meaningful to your purpose and the value is a String describing:
   endianness of the clients system is used (assuming the file has been encoded on/by a similar
   system, which usually means Little Endian these days).
 
-An example structure that defines the header of a .WAV file (see http://soundfile.sapp.org/doc/WaveFormat)
+An example structure that defines the [header of a .WAV file](http://soundfile.sapp.org/doc/WaveFormat)
 would look like:
 
 ```
@@ -109,37 +195,13 @@ All available data types are listed in the _{ types }_ export. Note that definit
 for _CHAR_ will return as a String. If you want an 8-bit integer/byte value, use
 _BYTE_ or _INT8_ instead.
 
-## Reading a chunk of data into an Object of a specific structure type
-
-There are three different methods with which you can supply binary data for parsing:
-
-* _parseFile_ when file data is a reference to a File on the clients machine
-* _parseByteArray_ when file data is an Uint8Array
-* _parseBase64_ when file data is a base64 encoded String
-
-Each of the methods is asynchronous (returns a Promise) and has the same signature:
-
-```
-async parseFn( fileReference, structureDefinition, offset )
-```
-
-Where:
-
-* _fileReference_ is the file to parse (one of File, Uint8Array or String)
-* _structureDefinition_ is an Object defining a structure (as described above)
-* _offset_ is a numerical index of where in the file's ByteArray reading should start
-  this defaults to 0 to start reading from the beginning of the file.
-
-### Example
-
-If we intend to parse a .WAV audio file using the structure definition as defined
-above, we can read the header like so:
+We can now proceed to read the file:
 
 ```
 import { parseFile } from 'typed-file-parser';
 
 async function readWaveHeader( fileReference ) {
-    const { data, end, error } = await parseFile( fileReference, wavHeader );
+    const { data, end, error } = await parseFile( fileReference, wavHeader, 0 );
 
     console.log( data );  // will contain the properties of a WAV file header
     console.log( end );   // will describe the end offset of the header
@@ -147,20 +209,10 @@ async function readWaveHeader( fileReference ) {
 }
 ```
 
-If all has been read successfully, _data_ is an Object that follows
-the structure of _wavHeader_ and is populated with the actual file data.
-
-_end_ describes at what offset in given file the structure's definition has ended.
-This can be used for subsequent read operations where binary data is retrieved,
-should you need to do so. In the example of reading a wave file, this could imply
-that, depending on WAV file type, an Array consisting of either INT16 or FLOAT32
-can be read from that offset.
-
-In case of an error, the error Object will have been defined. This indicates
-that an error occurred during parsing. The _data_ Object will be populated
-with all data that could've been harvested up until the error occurred.
-
-You can also view the demo provided in this repository's _index.html_ file.
+You can also view the demo provided in this repository's _example.html_ file, which
+parses .wav files and provides advanced examples using seek, slicing and error
+correction before finally providing the instruction on how to extract the
+meaningful data.
 
 ## Performance
 
@@ -182,3 +234,31 @@ taking the following guidelines into consideration:
   is recommended to use the _fileToByteArray_-method to create a single
   reusable byteArray and use the _parseByteArray_-method instead. This also
   makes sense if you need to read the file in its entirety.
+
+## Build instructions
+
+The project dependencies are maintained by NPM, you can resolve them using:
+
+```
+npm install
+```
+
+When using CommonJS or ES6 modules for your project, it is recommended to require/import the source code directly.
+However, the project can also be built directly for the browser using a simple NPM task:
+
+```
+npm run build
+```
+
+After which a folder dist/ is created which contains the prebuilt AMD/RequireJS library as well as a script that can be included directly in a document.
+The source code is transpiled to ES5 for maximum browser compatibility.
+
+## Unit testing
+
+Unit tests are run via jest, you can run the tests by running:
+
+```
+npm run test
+```
+
+Unit tests go in the _./test_-folder. The file name for a unit test must be equal to the file it is testing, but contain the suffix ".spec", e.g. _functions.js_ should have a test file _functions.spec.js_.
