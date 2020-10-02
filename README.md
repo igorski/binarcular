@@ -72,7 +72,7 @@ async parse( dataSource, structureDefinition, optReadOffset = 0 )
 Where:
 
 * _dataSource_ is the file to parse (can be either _File_, _Uint8Array_ or (base64 encoded) _String_)
-* _structureDefinition_ is an Object defining a data structure (described below)
+* _structureDefinition_ is an Object defining a data structure ([as described here](#define-a-structure))
 * _optReadOffset_ is a numerical index describing where in the file's ByteArray reading should start
   this defaults to 0 to start at the beginning of the file.
 
@@ -157,9 +157,9 @@ First up we will get to...
 Defining a structure is nothing more than declaring an Object where the keys
 define names meaningful to your purpose and the values consist of Strings describing:
 
-* one of the available type enumerations (note the name of the imported type is equal to its value)
-* optional Array declaration where by adding a numerical value between brackets (_[n]_), will
-  make the value an Array of given length _n_
+* one of the available type enumerations (the names of the imported types are equal to their value).
+* optional Array declaration where by adding a numerical value between brackets _[n]_, will
+  make the value an Array of given length _n_.
 * optional modifier defining the endianness of the file's byte order, separated by a pipeline
   (either _|BE_ for Big Endian or _|LE_ for Little Endian). When unspecified, the
   endianness of the clients system is used (assuming the file has been encoded on/by a similar
@@ -191,11 +191,11 @@ the order of the values as described the particular file's type!
 
 #### A teeny tiny note on Endianness
 
-Note that specifying endianness can be omitted if you're certain that the files
-encoding matches that of the platform you will be parsing the file on (most likely
-only Big Endian will require an explicit definition). _And I hope you will never
+Note that specifying endianness can be omitted if you're certain that the file's
+encoding is equal to that of the platform you will be parsing the file on (most likely
+only Big Endianness will require an explicit definition). _And I hope you will never
 be in the unfortunate situation where you work with a file that uses different
-endianness for different blocks!_.
+endianness for different blocks!_
 
 #### Back to talking types
 
@@ -224,7 +224,7 @@ meaningful data from the file.
 
 ## Performance
 
-Depending on the file types you're working with, memory allocation can be a problem.
+Depending on the size of the files you're working with, memory allocation can become a problem.
 
 The parser will only read the block that is requested (e.g. starting from the
 requested offset and only for the size of the requested _structureDefinition_) and
