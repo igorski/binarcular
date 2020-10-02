@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "description": "An extension that allows reading file",
   "keywords": [
-      "binary", "file", "parse", "parsing", "typed", "struct", "conversion", "header", "client", "browser"
+    "binary",
+    "file",
+    "parse",
+    "parsing",
+    "typed",
+    "struct",
+    "conversion",
+    "header",
+    "client",
+    "browser"
   ],
   "main": "dist/typed-file-parser.js",
   "jsnext:main": "typed-file-parser.js",
@@ -30,6 +39,7 @@
     "webpack": "^4.44.2",
     "webpack-cli": "^3.3.12",
     "webpack-dev-server": "^3.11.0",
-    "webpack-merge": "^5.1.4"
-}
+    "webpack-merge": "^5.1.4",
+    "worker-loader": "^3.0.3"
+  }
 }

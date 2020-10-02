@@ -20,29 +20,43 @@ const config = {
         modules: [
             dirNode,
             dirApp
-        ]
+        ],
+        alias: {
+            '@': path.resolve(__dirname, 'src')
+        }
     },
     module: {
         rules: [
-            // BABEL
             {
+                // inline Workers as Blobs
+
+                test: /\.worker\.js$/,
+                use: { loader: 'worker-loader', options: { inline: 'fallback' } }
+            },
+            {
+                // Babel
+
                 test: /\.js$/,
                 loader: 'babel-loader',
                 exclude: /(node_modules)/,
                 options: {
                     compact: true
                 }
-            }
+            },
         ]
     }
 };
 
+/* local development (includes examples application) */
 const browserConfig = {
     ...config,
+    entry: {
+        example: path.join(__dirname, 'example/example.js'),
+    },
     plugins: [
         new CleanWebpackPlugin(),
         new HtmlWebpackPlugin({
-            template: path.join(__dirname, 'index.html')
+            template: path.join(__dirname, 'example/example.html'),
         })
     ],
     output: {
@@ -51,6 +65,7 @@ const browserConfig = {
     }
 };
 
+/* production builds for requireJS and CommonJS/ES6 modules */
 const amdConfig = {
     ...config,
     output: {

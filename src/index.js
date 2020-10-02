@@ -20,6 +20,10 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+ import { types as dataTypes, getSizeForStructure } from '@/definitions/types';
+ import Parser from '@/workers/parser.worker';
+
+ export const types = dataTypes; // expose to the public
 
 /**
  * Whether the environment supports use of typed-file-parser
@@ -33,31 +37,6 @@ export function isSupported( use64bit = false, scope = window ) {
         'FileReader', 'atob', 'Uint8Array', 'DataView'
     ].every( fn => typeof scope[fn] === 'function' );
 };
-
-/**
- * Enumeration of all supported types. Note that there is some duplication
- * in type as they basically specify the same byte size and some variants
- * are meaningless in JavaScript. Their definition functions basically to
- * accurately describe the intent of the file format being read.
- */
-const TYPE_NAMES = [
-    'CHAR',
-    'BYTE', 'INT8', 'UINT8',
-    'SHORT', 'INT16', 'UINT16',
-    'INT24', 'UINT24',
-    'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'FLOAT32',
-    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64'
-];
-export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
-    acc[ name ] = name;
-    return acc;
-}, {}));
-
-// JavaScript doesn't distinguish between integer or floating point values in its
-// Number type, here we list the types that should be converted to floating point
-const FLOATING_POINT_TYPES = [
-    'FLOAT', 'FLOAT32', 'DOUBLE', 'FLOAT64'
-];
 
 /**
  * Parse a byte array and map the data starting from the given offset to an Object
@@ -79,50 +58,28 @@ const FLOATING_POINT_TYPES = [
  *     end: Number
  * }}
  */
-export function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
-    const total         = byteArray.length;
-    const structureKeys = Object.keys( structureDefinition );
-    const totalKeys     = structureKeys.length;
-    let keyIndex        = 0;
-
-    const out = {
-        data: {},
-        end: offset,
-        error: false
-    };
-
-    let i = Math.max( 0, offset );
-    for ( i; i < total && keyIndex < totalKeys; ) {
-        const key            = structureKeys[ keyIndex ];
-        const typeDefinition = structureDefinition[ key ];
-        const result = getDataForType( typeDefinition, byteArray, i );
-
-        if ( result.value === undefined ) {
-            out.error = true;
-            return out; // failed to read data
-        }
-
-        out.data[ key ] = result.value;
-        i = result.offset;
-        ++keyIndex;
-    }
-    out.end   = i;
-    out.error = out.end !== offset + getSizeForStructure( structureDefinition );
-
-    return out;
+export async function parseByteArray( byteArray, structureDefinition = {}, offset = 0 ) {
+    return new Promise(( resolve, reject ) => {
+        invokeWorker( resolve, reject, {
+            cmd: 'parse',
+            byteArray,
+            structureDefinition,
+            offset,
+        }, [ byteArray.buffer ]);
+    });
 };
 
 /**
  * Same as above, with the exception that the supplied data is base64 content
  */
-export function parseBase64( base64, structureDefinition, offset ) {
+export async function parseBase64( base64, structureDefinition, offset ) {
     let byteArray;
     try {
         byteArray = Uint8Array.from( window.atob( base64.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
     } catch {
         return { data: null, end: offset, error: true };
     }
-    return parseByteArray( byteArray, structureDefinition, offset );
+    return await parseByteArray( byteArray, structureDefinition, offset );
 };
 
 /**
@@ -149,25 +106,20 @@ export async function parseFile( fileReference, structureDefinition, offset = 0 
  * starting from given offset (default to 0 for start of file).
  * Returns the offset at which content was found.
  */
-export function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
+export async function scanUntil( byteArray, stringOrByteArray, offset = 0 ) {
+    let compareByteArray = stringOrByteArray;
     // transform String to bytes
     if ( typeof stringOrByteArray === 'string' ) {
-        stringOrByteArray = new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )));
+        compareByteArray = new Uint8Array( stringOrByteArray.split( '' ).map( c => c.charCodeAt( 0 )));
     }
-    const total        = byteArray.length;
-    const searchLength = stringOrByteArray.length;
-
-    for ( let i = offset; i < total; ++i ) {
-        if ( byteArray[ i ] !== stringOrByteArray[ 0 ]) {
-            continue;
-        }
-        const block = byteArray.slice( i, i + searchLength );
-
-        if ( block.every(( value, index ) => value === stringOrByteArray[ index ])) {
-            return i;
-        }
-    }
-    return Infinity;
+    return new Promise(( resolve, reject ) => {
+        invokeWorker( resolve, reject, {
+            cmd: 'scan',
+            byteArray,
+            compareByteArray,
+            offset,
+        }, [ byteArray.buffer, compareByteArray.buffer ]);
+    });
 }
 
 /**
@@ -186,256 +138,15 @@ export async function fileToByteArray( fileReference, offset = 0, size = fileRef
 
 /* internal methods */
 
-/**
- * We'll be using TypedArrays meaning read data will be converted to the
- * endianness of the environment. We lazily calculate this when required.
- */
-let _isLittleEndian = undefined;
-function isLittleEndian() {
-    if ( _isLittleEndian === undefined ) {
-        const b = new ArrayBuffer( 4 );
-        const a = new Uint32Array( b );
-        const c = new Uint8Array (b );
-        a[ 0 ]  = 0xdeadbeef;
-
-        _isLittleEndian = c[ 0 ] === 0xef;
-    }
-    return _isLittleEndian;
-}
-
-/**
- * For floating point conversions we can leverage the methods of the DataView
- * class. Instead of constantly recreating this we can lazily create and reuse one.
- * Note: this is only pooled for the 32-bit data types.
- */
-let _dataView = undefined;
-function getDataView() {
-    if ( _dataView === undefined ) {
-        _dataView = new DataView( new Uint8Array( 4 ).buffer );
-    }
-    return _dataView;
-}
-
-/**
- * The bread and butter of this library.
- * Read the byte(s) starting at given offset from given ByteArray
- * and return the formatted data type.
- */
-function getDataForType( typeDefinition, byteArray, offset ) {
-    const out = {
-        value: undefined,
-        offset
+function invokeWorker( resolve, reject, params, optTransferables ) {
+    const worker = new Parser();
+    worker.onmessage = ({ data }) => {
+        resolve( data );
+        worker.terminate();
     };
-
-    const type   = getDataTypeFromDefinition( typeDefinition );
-    const length = getLengthFromDefinition( typeDefinition );
-
-    if ( offset + ( length - 1 ) >= byteArray.length ) {
-        return out;
-    }
-    const littleEndian = isDefinitionForLittleEndian( typeDefinition );
-    const isFloat      = FLOATING_POINT_TYPES.includes( type );
-    const dataView     = isFloat ? getDataView() : null;
-
-    switch ( type ) {
-        default:
-            return out;
-
-        // NOTE we duplicate between single and list based values to
-        // omit the need for a slicing operation on the ByteArray
-        // 8-bit String type
-        case types.CHAR:
-            if ( length === 1 ) {
-                out.value = String.fromCharCode( byteArray[ offset ]);
-            } else {
-                out.value = [...byteArray.slice( offset, offset + length )].map( byte => String.fromCharCode( byte )).join( '' );
-            }
-            out.offset += length;
-            break;
-
-        // 8-bit Number types
-        case types.BYTE:
-        case types.INT8:
-        case types.UINT8:
-            if ( length === 1 ) {
-                out.value = byteArray[ offset ];
-            } else {
-                out.value = [...byteArray.slice( offset, offset + length )];
-            }
-            out.offset += length;
-            break;
-
-        // NOTE the large bit shift statements aren't the most readable, but here we
-        // take comfort in knowing that their performance is nice enough given
-        // that this method is already abstracted behind several subroutines
-        // 16-bit Number types
-        case types.SHORT:
-        case types.INT16:
-        case types.UINT16:
-            // we will need to combine two bytes into one value
-            out.value = combineBytes( offset, length, 2, it => {
-                if ( littleEndian ) {
-                    return (byteArray[ it + 1 ] << 8) | byteArray[ it ];
-                } else {
-                    return (byteArray[ it ] << 8) | byteArray[ it + 1 ];
-                }
-            });
-            out.offset += length * 2;
-            break;
-
-        // 24-bit Number types (this is more meaningful to those dealing with audio formats)
-        case types.INT24:
-        case types.UINT24:
-            // we will need to combine three bytes into one value
-            out.value = combineBytes( offset, length, 3, it => {
-                if ( littleEndian ) {
-                    return (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
-                } else {
-                    return (byteArray[ it ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it + 2 ];
-                }
-            });
-            out.offset += length * 3;
-            break;
-
-        // 32-bit integer Number types
-        case types.INT32:
-        case types.UINT32:
-        case types.LONG:
-        case types.ULONG:
-        case types.FLOAT:
-        case types.FLOAT32:
-            // we will need to combine four bytes into one value
-            out.value = combineBytes( offset, length, 4, it => {
-                let value;
-                if ( littleEndian ) {
-                    value = (byteArray[ it + 3 ] << 24) | (byteArray[ it + 2 ] << 16) | (byteArray[ it + 1 ] << 8) | byteArray[ it ];
-                } else {
-                    value = (byteArray[ it ] << 24) | (byteArray[ it + 1 ] << 16) | (byteArray[ it + 2 ] << 8) | byteArray[ it + 3 ];
-                }
-                if ( isFloat ) {
-                    dataView.setInt32( 0, value );
-                    return dataView.getFloat32();
-                }
-                return value;
-            });
-            out.offset += length * 4;
-            break;
-
-        // 64-bit Number types
-        case types.INT64:
-        case types.UINT64:
-        case types.LONGLONG:
-        case types.ULONGLONG:
-        case types.DOUBLE:
-        case types.FLOAT64:
-            // we will need to combine eight bytes into one value
-            out.value = combineBytes( offset, length, 8, it => {
-                // as JavaScripts MAX_SAFE_INTEGER is 53-bits we need to perform some
-                // magic with a custom DataView here (which gives this conversion some overhead)
-                const bytes = byteArray.slice( it, it + 8 );
-                const dataView = new DataView( bytes.buffer );
-
-                // tiny loss of precision for a max value (8 times 0xff)
-                // this returns 18,446,744,073,709,552,000 instead of 18,446,744,073,709,551,615 (max uint64 value)
-                // also note endianness used here is from the client machine and not from the typeDefinition as DataView handles this
-                let value = dataView.getUint32( 0, _isLittleEndian ) + 2 ** 32 * dataView.getUint32( 4, _isLittleEndian );
-
-                if ( isFloat ) {
-                    dataView.setBigInt64( 0, BigInt( value ));
-                    return dataView.getFloat64();
-                }
-                return value;
-            });
-            out.offset += length * 8;
-            break;
-    }
-    return out;
-}
-
-/**
- * Combine multiple bytes (defined by amount) from given offset
- * into the amount of values defined by length, where the value(s)
- * is/are transformed by supplied fn
- */
-function combineBytes( offset, length, amount, fn ) {
-    const isList = length > 1;
-    const max    = offset + ( length * amount );
-
-    let value = isList ? [] : 0;
-    for ( let i = offset; i < max; i += amount ) {
-        const combinedValue = fn( i );
-        if ( isList ) {
-            value.push( combinedValue );
-        } else {
-            value = combinedValue;
-        }
-    }
-    return value;
-}
-
-/**
- * Parse the definition string and retrieve the data type
- */
-const getDataTypeFromDefinition = typeDefinition => typeDefinition.split(/(\[|\|)/)[0];
-
-/**
- * Parse the requested length (if Array notation is present) for given definition string
- */
-const getLengthFromDefinition = typeDefinition => parseInt( typeDefinition.match( /(?<=\[)\d+(?=\])/ )?.[0] ?? 1 );
-
-const isDefinitionForLittleEndian = typeDefinition => {
-    if ( typeDefinition.includes( '|BE' )) {
-        return false;
-    } else if ( typeDefinition.includes( '|LE' )) {
-        return true;
-    }
-    return isLittleEndian(); // when unspecified, default to client environment
-};
-
-/**
- * Calculates the size in bytes for given structure
- */
-function getSizeForStructure( structureDefinition ) {
-    let size = 0;
-    Object.values( structureDefinition ).forEach( typeDefinition => {
-        const type   = getDataTypeFromDefinition( typeDefinition );
-        const length = getLengthFromDefinition( typeDefinition );
-
-        switch ( type ) {
-            case types.CHAR:
-            case types.BYTE:
-            case types.INT8:
-            case types.UINT8:
-                size += length;
-                break;
-            case types.SHORT:
-            case types.INT16:
-            case types.UINT16:
-                size += ( length * 2 );
-                break;
-            case types.INT24:
-            case types.UINT24:
-                size += ( length * 3 );
-                break;
-            case types.INT32:
-            case types.UINT32:
-            case types.LONG:
-            case types.ULONG:
-            case types.FLOAT:
-            case types.FLOAT32:
-                size += ( length * 4 );
-                break;
-            case types.INT64:
-            case types.UINT64:
-            case types.LONGLONG:
-            case types.ULONGLONG:
-            case types.DOUBLE:
-            case types.FLOAT64:
-                size += ( length * 8 );
-                break;
-            default:
-                throw new Error( `Unsupported data type "${type}"` );
-        }
-    });
-    return size;
+    worker.onerror = error => {
+        reject( error );
+        worker.terminate();
+    };
+    worker.postMessage( params, optTransferables );
 }

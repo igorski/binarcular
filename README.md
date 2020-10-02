@@ -1,11 +1,15 @@
 # typed-file-parser
 
-A small library that allows you to read the contents of a binary file into an
-Object structure, doing all the nasty type conversion for you.
+A library that allows you to read the contents of a binary file into a JSON Object,
+taking care of all data type conversion into JavaScript-friendly values. You can search for data
+by value, slice blocks into separate, meaningful structures or just read the entire file,
+all inside your browser.
 
-A practical use case being validating whether a file header contains all the
-appropriate fields and values. Or a more advanced use case being parsing meta
-data from a file to determine where the meaningful data is stored.
+Practical use cases are:
+
+* Validating whether a file header contains the appropriate description
+* Scanning a file for specific meta data
+* Using found meta data to locate where other meaningful data is stored... and extract it
 
 ## Compatibility
 
@@ -21,8 +25,7 @@ if ( isSupported() ) {
 }
 ```
 
-NOTE: if you require support for 64-bit types there are [additional requirements](https://caniuse.com/?search=bigint).
-Pass boolean _true_ to _isSupported()_ to determine whether the environment supports 64-bit conversion.
+NOTE: if you require support for 64-bit types there are [additional requirements](https://caniuse.com/?search=bigint). Pass boolean _true_ to _isSupported()_ to determine whether the environment supports 64-bit conversion.
 
 ## Installation
 
@@ -110,14 +113,14 @@ _BYTE_ or _INT8_ instead.
 
 There are three different methods with which you can supply binary data for parsing:
 
-* _parseFile_ when file data is a reference to a File on the clients machine (async)
+* _parseFile_ when file data is a reference to a File on the clients machine
 * _parseByteArray_ when file data is an Uint8Array
 * _parseBase64_ when file data is a base64 encoded String
 
-Each of the methods has the same signature:
+Each of the methods is asynchronous (returns a Promise) and has the same signature:
 
 ```
-parseFn( fileReference, structureDefinition, offset )
+async parseFn( fileReference, structureDefinition, offset )
 ```
 
 Where:
@@ -134,6 +137,7 @@ above, we can read the header like so:
 
 ```
 import { parseFile } from 'typed-file-parser';
+
 async function readWaveHeader( fileReference ) {
     const { data, end, error } = await parseFile( fileReference, wavHeader );
 
@@ -160,16 +164,18 @@ You can also view the demo provided in this repository's _index.html_ file.
 
 ## Performance
 
-Depending on the files you're working with, memory allocation can be a problem.
+Depending on the file types you're working with, memory allocation can be a problem.
+
 The parse methods will only read the block that is requested (e.g. starting from the
-requested offset and for the size of the requested _structureDefinition_) and
-should be light on resources.
+requested offset and only for the size of the requested _structureDefinition_) and
+should be light on resources. Additionally, all read operations happen in a
+dedicated Web Worker which keeps your main application responsive.
 
 Depending on your use case, you might take additional steps which should be
 taking the following guidelines into consideration:
 
 * Use base64 only when you have no choice as a base64 String describes the
-  file in its entirety. Also, the way JavaScript handles Strings is by
+  file _in its entirety_. Also, the way JavaScript handles Strings is by
   allocating the entire value (and not by reference!)
 * If you intend to do multiple reads on a file (for instance: first reading
   its header to determine where in the file the meaningful content begins) it
