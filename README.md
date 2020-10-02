@@ -217,7 +217,7 @@ async function readWaveHeader( fileReference ) {
 }
 ```
 
-You can also view the demo provided in this repository's _example.html_ file, which
+You can also view the [demo](https://htmlpreview.github.io/?https://github.com/igorski/typed-file-parser/blob/master/dist/index.html) provided in this repository's _example.html_ file, which
 parses .WAV files and provides advanced examples using seeking, slicing and error
 correction before finally providing you with the instruction on how to extract the
 meaningful data from the file.
