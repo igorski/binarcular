@@ -96,5 +96,8 @@ export const getDataTypeFromDefinition = typeDefinition => typeDefinition.split(
 
 /**
  * Parse the requested length (if Array notation is present) for given definition string
+ * The correct expression here would be /(?<=\[)\d+(?=\])/
+ * but Safari does not support the look behind, the below works fine though for
+ * annotations like 'INT16[30]', 'INT16|LE[30]' and 'INT16[30]|LE'
  */
-export const getLengthFromDefinition = typeDefinition => parseInt( typeDefinition.match( /(?<=\[)\d+(?=\])/ )?.[0] ?? 1 );
+export const getLengthFromDefinition = typeDefinition => parseInt( typeDefinition.match( /\d+(?=\])/ )?.[0] ?? 1 );

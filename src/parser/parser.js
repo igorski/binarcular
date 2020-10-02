@@ -220,7 +220,7 @@ function combineBytes( offset, length, amount, fn ) {
     return value;
 }
 
-const isDefinitionForLittleEndian = typeDefinition => {
+function isDefinitionForLittleEndian( typeDefinition ) {
     if ( typeDefinition.includes( '|BE' )) {
         return false;
     } else if ( typeDefinition.includes( '|LE' )) {
