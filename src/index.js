@@ -53,7 +53,7 @@ export function isSupported( use64bit = false, scope = window ) {
  * calling context must update its reference with the returned byteArray as
  * buffer ownership had been transferred to the Worker.
  *
- * @param {Uint8Array|File|String} input either byte array, file or base64 String
+ * @param {Uint8Array|File|Blob|String} input either byte array, file or base64 String
  * @param {Object} structure key/values where key is the target name of the
  *                 property and the value is one of the enumerated types listed above.
  * @param {Number=} offset to read from, optional and defaults to 0
@@ -70,7 +70,7 @@ export async function parse( input, structureDefinition = {}, offset = 0 ) {
         if ( typeof input === 'string' ) {
             // convert base64 into byteArray
             byteArray = Uint8Array.from( window.atob( input.split( 'base64,' ).pop()), c => c.charCodeAt( 0 ));
-        } else if ( input instanceof File ) {
+        } else if ( input instanceof File || input instanceof Blob ) {
             byteArray = await fileToByteArray(
                 input, offset, getSizeForStructure( structureDefinition )
             );
@@ -80,7 +80,7 @@ export async function parse( input, structureDefinition = {}, offset = 0 ) {
     }
 
     if ( !( byteArray instanceof Uint8Array )) {
-        throw new Error( `input should be either String, File or Uint8Array got ${typeof input} instead` );
+        throw new Error( `input should be either String, File, Blob or Uint8Array got ${typeof input} instead` );
     }
 
     return new Promise(( resolve, reject ) => {

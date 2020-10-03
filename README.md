@@ -53,7 +53,7 @@ import {
     isSupported:     fn( optUseBase64Boolean = false ),
     types:           Object<String>,
     parse:           async fn( dataSource, structureDefinition, optReadOffset = 0 ),
-    seek:            async fn( uint8Array,    searchStringOrByteArray, optReadOffset = 0),
+    seek:            async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0),
     fileToByteArray: async fn( file, optSliceOffset = 0, optSliceSize = file.size )
 
 } from 'binarcular';
@@ -71,7 +71,7 @@ async parse( dataSource, structureDefinition, optReadOffset = 0 )
 
 Where:
 
-* _dataSource_ is the file to parse (can be either _File_, _Uint8Array_ or (base64 encoded) _String_)
+* _dataSource_ is the file to parse (can be either _File_, _Blob_, _Uint8Array_ or (base64 encoded) _String_)
 * _structureDefinition_ is an Object defining a data structure ([as described here](#define-a-structure))
 * _optReadOffset_ is a numerical index describing where in the file's ByteArray reading should start
   this defaults to 0 to start at the beginning of the file.
@@ -140,7 +140,7 @@ async fileToByteArray( fileReference, optSliceOffset = 0, optSliceSize = fileRef
 
 where:
 
-* _fileReference_ is the File of which the contents should be read into a _Uint8Array_.
+* _fileReference_ is the File (or Blob) of which the contents should be read into a _Uint8Array_.
 * _optSliceOffset_ is the optional offset from where to read the data, defaults to 0 to
 start from the beginning.
 * _optSliceSize_ is the optional size of the resulting ByteArray. This defaults to the

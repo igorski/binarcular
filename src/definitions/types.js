@@ -92,7 +92,7 @@ export function getSizeForStructure( structureDefinition ) {
 /**
  * Parse the definition string and retrieve the data type
  */
-export const getDataTypeFromDefinition = typeDefinition => typeDefinition.split(/(\[|\|)/)[0];
+export const getDataTypeFromDefinition = typeDefinition => typeDefinition.split( /(\[|\|)/ )[0];
 
 /**
  * Parse the requested length (if Array notation is present) for given definition string
