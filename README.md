@@ -50,7 +50,7 @@ The module exports the following:
 ```
 import {
 
-    isSupported:     fn( optUseBase64Boolean = false ),
+    isSupported:     fn( optRequire64bitConversion = false ),
     types:           Object<String>,
     parse:           async fn( dataSource, structureDefinition, optReadOffset = 0 ),
     seek:            async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0),
