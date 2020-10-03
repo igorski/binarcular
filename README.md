@@ -241,7 +241,7 @@ Depending on your use case, it helps to take the following guidelines into consi
 * If you intend to do multiple reads on the same file (for instance: first reading
   its header to determine where in the file the meaningful content begins) it
   is recommended to use the _fileToByteArray()_-method to create a single
-  reusable byteArray. This also makes sense if you need to read the file in its entirety.
+  reusable _Uint8Array_. This also makes sense if you need to read the file in its entirety.
 
 ## Build instructions
 
@@ -253,7 +253,7 @@ The project dependencies are maintained by NPM, you can resolve them using:
 npm install
 ```
 
-You can develop (and test against the example app) by running:
+You can develop (and test against the example app by navigating to _http://localhost:8080_) by running:
 
 ```
 npm run dev
