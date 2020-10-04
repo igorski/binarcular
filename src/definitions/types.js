@@ -33,13 +33,30 @@ const TYPE_NAMES = [
     'SHORT', 'INT16', 'UINT16',
     'INT24', 'UINT24',
     'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'FLOAT32',
-    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64'
+    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64',
 ];
 
 export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {
     acc[ name ] = name;
     return acc;
 }, {}));
+
+// JavaScript doesn't distinguish between integer or floating point values in its
+// Number type, here we list the types that should be converted to floating point
+
+export const floatingPointTypes = [
+    types.FLOAT, types.FLOAT32, types.DOUBLE, types.FLOAT64
+];
+
+// and the same for unsigned and 64-bit values
+
+export const unsignedTypes = [
+    types.UINT8, types.UINT16, types.UINT24, types.UINT32, types.ULONG, types.UINT64, types.ULONGLONG
+];
+
+export const sixtyFourBitTypes = [
+    types.INT64, types.UINT64, types.LONGLONG, types.ULONGLONG, types.DOUBLE, types.FLOAT64
+];
 
 /**
  * Calculates the size in bytes for given structure's data types
@@ -101,3 +118,30 @@ export const getDataTypeFromDefinition = typeDefinition => typeDefinition.split(
  * annotations like 'INT16[30]', 'INT16|LE[30]' and 'INT16[30]|LE'
  */
 export const getLengthFromDefinition = typeDefinition => parseInt( typeDefinition.match( /\d+(?=\])/ )?.[0] ?? 1 );
+
+export function isDefinitionForLittleEndian( typeDefinition ) {
+    if ( typeDefinition.includes( '|BE' )) {
+        return false;
+    } else if ( typeDefinition.includes( '|LE' )) {
+        return true;
+    }
+    return isLittleEndian(); // when unspecified, default to client environment
+};
+
+/**
+ * We'll be using TypedArrays meaning read data will be converted to the
+ * endianness of the environment. We lazily calculate the environment
+ * endianness this when required.
+ */
+let _isLittleEndian = undefined;
+export function isLittleEndian() {
+    if ( _isLittleEndian === undefined ) {
+        const b = new ArrayBuffer( 4 );
+        const a = new Uint32Array( b );
+        const c = new Uint8Array (b );
+        a[ 0 ]  = 0xdeadbeef;
+
+        _isLittleEndian = c[ 0 ] === 0xef;
+    }
+    return _isLittleEndian;
+}

@@ -21,6 +21,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import { parse, seek } from '@/parser/parser';
+import { write } from '@/writer/writer';
 
 /* public API */
 
@@ -49,6 +50,12 @@ function handleMessage({ data }) {
             self.postMessage({
                 offset: seek( byteArray, data.compareByteArray, data.offset ),
                 byteArray
+            }, [ byteArray.buffer ]);
+            break;
+
+        case 'write':
+            self.postMessage({
+                ...write( byteArray, data.structureDefinition, data.data, data.offset ),
             }, [ byteArray.buffer ]);
             break;
     }

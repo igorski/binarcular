@@ -1,9 +1,9 @@
 # Binarcular
 
-A library that allows you to read the contents of a binary file into a JSON Object,
+A library that allows you to read/write the contents of a binary file into/from a JSON Object,
 taking care of all data type conversion into JavaScript-friendly values. You can search for data
-by value, slice blocks into separate, meaningful structures or just read the entire file,
-all inside your browser.
+by value, slice blocks into separate, meaningful structures or generate a binary downloadable
+file, all inside your browser.
 
 Practical use cases are:
 
@@ -53,8 +53,10 @@ import {
     isSupported:     fn( optRequire64bitConversion = false ),
     types:           Object<String>,
     parse:           async fn( dataSource, structureDefinition, optReadOffset = 0 ),
-    seek:            async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0),
+    seek:            async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0 ),
+    write:           async fn( uint8Array, structureDefinition, dataToWrite, optWriteOffset = 0 )
     fileToByteArray: async fn( file, optSliceOffset = 0, optSliceSize = file.size )
+    byteArrayToFile: fn( byteArray, filename, optMimeType = 'application/octet-stream' )
 
 } from 'binarcular';
 ```
@@ -132,6 +134,41 @@ defaults to 0 to read from the start.
 The method returns a numerical index at which the data was found or _Infinity_
 if no match were found.
 
+### Writing JSON as binary content
+
+If you have a JSON structure that you wish to write into a binary file, you can do
+so using _write_:
+
+```
+async write( uint8Array, structureDefinition, dataToWrite, optWriteOffset = 0 )
+```
+
+where:
+
+* _uint8Array_ is the ByteArray containing the binary data.
+* _structureDefinition_ is an Object defining a data structure ([as described here](#define-a-structure))
+* _dataToWrite_ is an Object following the data structure, except the values here is the
+  data you wish to write in the binary file.
+* _optWriteOffset_ is the index at which data will be written. This defaults to _0_ to
+ start writing at the beginning of the file.
+
+The result of this operations is the following:
+
+```
+{
+    data: Object,
+    end: Number,
+    error: Boolean,
+    byteArray: Uint8Array
+}
+```
+
+Where _byteArray_ should replace the reference of the _byteArray_ you passed into
+the method. This ByteArray contains the original data except that the data starting
+at requested _optWriteOffset_ and ending at _optWriteOffset_ + length of
+_structureDefinition_ has been replaced with the binary equivalent of the JSON
+structure defined in the _dataToWrite_-Object.
+
 ### Converting a File reference to a ByteArray
 
 ```
@@ -146,6 +183,17 @@ start from the beginning.
 * _optSliceSize_ is the optional size of the resulting ByteArray. This defaults to the
 size of the file to read the file in its entirety. When using a custom _optSliceOffset_
 overflow checking is performed to prevent reading out of the file boundaries.
+
+### Converting a ByteArray to a File
+
+```
+byteArrayToFile( byteArray, filename, optMimeType = 'application/octet-stream' )
+```
+
+This will generate a download of given _filename_, containing the data of
+_byteArray_ as its content using given _optMimeType_.
+
+To prevent blocking the download, this should be called directly from a click handler.
 
 ## Example
 

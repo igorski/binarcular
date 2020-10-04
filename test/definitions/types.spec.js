@@ -1,4 +1,8 @@
-import { types, getDataTypeFromDefinition, getLengthFromDefinition } from '@/definitions/types';
+import {
+    types, getSizeForStructure, getDataTypeFromDefinition, getLengthFromDefinition,
+    isDefinitionForLittleEndian
+} from '@/definitions/types';
+import { headerDefinition } from '../_data';
 
 describe('Data types', () => {
     describe('when parsing the data type from the type definition', () => {
@@ -51,4 +55,26 @@ describe('Data types', () => {
             });
         });
     });
+
+    describe('when parsing endianness form the definition', () => {
+        it('should be able to recognize Big Endianness', () => {
+            Object.values( types ).forEach( type => {
+                expect( isDefinitionForLittleEndian( `${type}|BE` )).toBe( false );
+                expect( isDefinitionForLittleEndian( `${type}[512]|BE` )).toBe( false );
+                expect( isDefinitionForLittleEndian( `${type}|BE[512]` )).toBe( false );
+            });
+        });
+
+        it('should be able to recognize Little Endianness', () => {
+            Object.values( types ).forEach( type => {
+                expect( isDefinitionForLittleEndian( `${type}|LE` )).toBe( true );
+                expect( isDefinitionForLittleEndian( `${type}[512]|LE` )).toBe( true );
+                expect( isDefinitionForLittleEndian( `${type}|LE[512]` )).toBe( true );
+            });
+        });
+    });
+
+    it('should be able to determine the size in bytes for a structure definition', () => {
+        expect( getSizeForStructure( headerDefinition )).toEqual( 44 );
+    })
 });

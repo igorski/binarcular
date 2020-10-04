@@ -21,34 +21,12 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
-    types, getSizeForStructure, getDataTypeFromDefinition, getLengthFromDefinition
+    types, floatingPointTypes,
+    getSizeForStructure, getDataTypeFromDefinition, getLengthFromDefinition,
+    isDefinitionForLittleEndian
 } from '@/definitions/types';
 
 /* internal methods */
-
-// JavaScript doesn't distinguish between integer or floating point values in its
-// Number type, here we list the types that should be converted to floating point
-
-const FLOATING_POINT_TYPES = [
-    types.FLOAT, types.FLOAT32, types.DOUBLE, types.FLOAT64
-];
-
-/**
- * We'll be using TypedArrays meaning read data will be converted to the
- * endianness of the environment. We lazily calculate this when required.
- */
-let _isLittleEndian = undefined;
-function isLittleEndian() {
-    if ( _isLittleEndian === undefined ) {
-        const b = new ArrayBuffer( 4 );
-        const a = new Uint32Array( b );
-        const c = new Uint8Array (b );
-        a[ 0 ]  = 0xdeadbeef;
-
-        _isLittleEndian = c[ 0 ] === 0xef;
-    }
-    return _isLittleEndian;
-}
 
 /**
  * For floating point conversions we can leverage the methods of the DataView
@@ -81,7 +59,7 @@ function getDataForType( typeDefinition, byteArray, offset ) {
         return out;
     }
     const littleEndian = isDefinitionForLittleEndian( typeDefinition );
-    const isFloat      = FLOATING_POINT_TYPES.includes( type );
+    const isFloat      = floatingPointTypes.includes( type );
     const dataView     = isFloat ? getDataView() : null;
 
     switch ( type ) {
@@ -179,17 +157,17 @@ function getDataForType( typeDefinition, byteArray, offset ) {
              out.value = combineBytes( offset, length, 8, it => {
                  // as JavaScripts MAX_SAFE_INTEGER is 53-bits we need to perform some
                  // magic with a custom DataView here (which gives this conversion some overhead)
-                 const bytes = byteArray.slice( it, it + 8 );
-                 const dataView = new DataView( bytes.buffer );
+                 const dataView = new DataView(( byteArray.slice( it, it + 8 )).buffer );
 
                  // tiny loss of precision for a max value (8 times 0xff)
                  // this returns 18,446,744,073,709,552,000 instead of 18,446,744,073,709,551,615 (max uint64 value)
-                 // also note endianness used here is from the client machine and not from the typeDefinition as DataView handles this
-                 const value = dataView.getUint32( 0, _isLittleEndian ) + 2 ** 32 * dataView.getUint32( 4, _isLittleEndian );
+                 const highByte = littleEndian ? 0 : 4;
+                 const lowByte  = littleEndian ? 4 : 0;
+                 const value    = dataView.getUint32( highByte, littleEndian ) + 2 ** 32 * dataView.getUint32( lowByte, littleEndian );
 
                  if ( isFloat ) {
-                     dataView.setBigInt64( 0, BigInt( value ));
-                     return dataView.getFloat64();
+                     dataView.setBigInt64( 0, BigInt( value ), littleEndian );
+                     return dataView.getFloat64( 0, littleEndian );
                  }
                  return value;
              });
@@ -219,15 +197,6 @@ function combineBytes( offset, length, amount, fn ) {
     }
     return value;
 }
-
-function isDefinitionForLittleEndian( typeDefinition ) {
-    if ( typeDefinition.includes( '|BE' )) {
-        return false;
-    } else if ( typeDefinition.includes( '|LE' )) {
-        return true;
-    }
-    return isLittleEndian(); // when unspecified, default to client environment
-};
 
 /* public API */
 

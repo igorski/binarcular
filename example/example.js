@@ -1,4 +1,4 @@
-import { types, parse, seek, fileToByteArray } from '../src/index.js';
+import { types, parse, seek, fileToByteArray } from "../src/index.js";
 const { CHAR, INT8, INT16, INT32 } = types;
 
 // header for JPEG files (see https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format)
@@ -47,6 +47,8 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
     const { files } = event.target;
     const file      = files[ 0 ];
 
+    if ( !file ) return; // likely selected same file
+
     if ( file.type === "image/jpeg" ) {
         // EXAMPLE 1: file is JPEG image
         const { data, error } = await parse( file, jpegHeader );
@@ -59,7 +61,7 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
         let data, error;
 
         // EXAMPLE 2 : file is WAV audio file
-        // first convert file into ByteArray (let's assume we will run into an error and need to do manual scanning, see below)
+        // first convert file into ByteArray (let"s assume we will run into an error and need to do manual scanning, see below)
         let byteArray = await fileToByteArray( file );
 
         // NOTE: when passing around a byteArray you should always update its reference
@@ -72,6 +74,7 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
 
         if ( ! data.formatName?.includes( "fmt" )) {
             ({ data, byteArray } = await attemptWavCorrection( byteArray, data ));
+            if ( !data ) return; // file is properly broken
             resultArea.innerText = formatJson( data ); // update existing view content
         }
 
@@ -81,7 +84,7 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
         }
 
         // EXAMPLE 2.2 show how further data can be read
-        await findWavAudioBlock( byteArray, data );
+        ({ data, byteArray } = await findWavAudioBlock( byteArray, data ));
     }
 });
 
@@ -93,7 +96,7 @@ async function attemptWavCorrection( byteArray, headerData ) {
     ({ offset, byteArray } = await seek( byteArray, "fmt " ));
     if ( offset === Infinity ) {
         resultArea.innerText = "Could not find valid format declaration in WAV file. File is corrupted";
-        return;
+        return {};
     }
     // attempt to read the parts of the header that failed to be read (this could be done more neatly, but you get the point...)
     const halfWavHeader = {
@@ -129,13 +132,13 @@ async function findWavAudioBlock( byteArray, headerData ) {
         let dataType;
         switch ( headerData.bitsPerSample ) {
             default:
-                dataType = 'FLOAT32'; // max 32-bit floating point
+                dataType = "FLOAT32"; // max 32-bit floating point
                 break;
             case 16:
-                dataType = 'INT16';
+                dataType = "INT16";
                 break;
             case 24:
-                dataType = 'INT24';
+                dataType = "INT24";
                 break;
         }
         // add size of Array and endianness to this data type (RIFF is always Little Endian)
@@ -149,4 +152,8 @@ async function findWavAudioBlock( byteArray, headerData ) {
         // const parsedData = await parse( byteArray, { audio: dataType }, offset + 8 );
         // console.log( parsedData.data?.audio.slice( 0, 512 ));
     }
+    return {
+        data: headerData,
+        byteArray
+    };
 }

@@ -1,7 +1,7 @@
 {
   "name": "binarcular",
-  "version": "0.1.2",
-  "description": "Parse|slice|search binary data/files into meaningful JSON structures, inside your web browser",
+  "version": "0.2.0",
+  "description": "Parse|write|slice|search binary data/files into|from meaningful JSON structures, inside your web browser",
   "author": "Igor Zinken <igor.zinken@igorski.nl> (https://www.igorski.nl/)",
   "bugs": {
     "url": "https://github.com/igorski/binarcular/issues/"
@@ -19,6 +19,8 @@
     "parse",
     "parser",
     "parsing",
+    "write",
+    "writing",
     "typed",
     "struct",
     "structure",

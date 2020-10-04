@@ -21,7 +21,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
  import { types as dataTypes, getSizeForStructure } from '@/definitions/types';
- import Parser from '@/workers/parser.worker';
+ import BinarcularWorker from '@/workers/binarcular.worker';
 
  export const types = dataTypes; // expose to the public
 
@@ -115,6 +115,23 @@ export async function seek( byteArray, stringOrByteArray, offset = 0 ) {
 }
 
 /**
+ * Translate the JSON values in data according to the spec definition by
+ * structureDefinition into bytes and write them starting from optWriteOffset
+ * into given byteArray.
+ */
+export async function write( byteArray, structureDefinition, data, optWriteOffset = 0 ) {
+    return new Promise(( resolve, reject ) => {
+        invokeWorker( resolve, reject, {
+            cmd: 'write',
+            byteArray,
+            structureDefinition,
+            data,
+            offset: optWriteOffset
+        }, [ byteArray.buffer ]);
+    })
+}
+
+/**
  * Converts given File to a ByteArray of requested size
  */
 export async function fileToByteArray( fileReference, offset = 0, size = fileReference.size ) {
@@ -128,10 +145,27 @@ export async function fileToByteArray( fileReference, offset = 0, size = fileRef
     });
 }
 
+/**
+ * Exports given byteArray to a File and downloads it under given fileName
+ */
+export function byteArrayToFile( byteArray, fileName, optMimeType = 'application/octet-stream' ) {
+    const blob = new Blob([ byteArray ], { type: optMimeType });
+    const url  = window.URL.createObjectURL( blob );
+
+    const anchor    = document.createElement( 'a' );
+    anchor.href     = url;
+    anchor.download = fileName;
+    document?.body.appendChild( anchor );
+    anchor.click();
+    anchor.remove();
+
+    window.URL.revokeObjectURL( url );
+}
+
 /* internal methods */
 
 function invokeWorker( resolve, reject, params, optTransferables ) {
-    const worker = new Parser();
+    const worker = new BinarcularWorker();
     worker.onmessage = ({ data }) => {
         resolve( data );
         worker.terminate();

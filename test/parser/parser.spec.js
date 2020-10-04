@@ -1,6 +1,8 @@
 import { types }       from '@/definitions/types';
 import { parse, seek } from '@/parser/parser';
 
+import { headerDefinition, binaryFile, binaryAsJson } from '../_data';
+
 describe('Parser', () => {
     describe('When working with typed data types', () => {
         it('should provide enumerated data types', () => {
@@ -191,7 +193,7 @@ describe('Parser', () => {
 
                 it('should be able to parse multiple entries to Arrays of Number values', () => {
                     const byteArray = new Uint8Array([ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x88, 0x54, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a ]);
-                    [ types.INT64, types.LONGLONG].forEach( type => {
+                    [ types.INT64, types.LONGLONG ].forEach( type => {
                         const { data, end, error } = parse( byteArray, { value: `${type}[2]` });
                         expect( error ).toBe( false );
                         expect( data.value ).toEqual([ 18446744073709552000, 723685415097226400 ]);
@@ -200,11 +202,11 @@ describe('Parser', () => {
                 });
 
                 it('should be able to parse both Little Endian and Big Endian values', () => {
-                    const byteArray = new Uint8Array([ 0x88, 0x54, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a ]);
+                    const byteArrayLE = new Uint8Array([ 0x88, 0x54, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a ]);
                     const byteArrayBE = new Uint8Array([ 0x0a, 0x0b, 0x0c, 0x0d, 0x00, 0x00, 0x54, 0x88 ]);
                     [ types.INT64, types.LONGLONG ].forEach( type => {
-                        expect( parse( byteArray, { value: `${type}|LE` }).data.value ).toEqual( 723685415097226400 );
-                        expect( parse( byteArray, { value: `${type}|BE` }).data.value ).toEqual( 723685415097226400 );
+                        expect( parse( byteArrayLE, { value: `${type}|LE` }).data.value ).toEqual( 723685415097226400 );
+                        expect( parse( byteArrayBE, { value: `${type}|BE` }).data.value ).toEqual( 723685415097226400 );
                     });
                 });
             });
@@ -221,10 +223,11 @@ describe('Parser', () => {
                 });
 
                 it('should be able to parse both Little Endian and Big Endian values', () => {
-                    const byteArray = new Uint8Array([ 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0xd5, 0x3f ]);
+                    const byteArrayLE = new Uint8Array([ 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0xd5, 0x3f ]);
+                    const byteArrayBE = new Uint8Array([ 0x3f, 0xd5, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 ]);
                     [ types.DOUBLE, types.FLOAT64 ].forEach( type => {
-                        expect( parse( byteArray, { value: `${type}|LE` }).data.value ).toEqual( 0.3333333333333428 );
-                        expect( parse( byteArray, { value: `${type}|BE` }).data.value ).toEqual( 0.3333333333333428 );
+                        expect( parse( byteArrayLE, { value: `${type}|LE` }).data.value ).toEqual( 0.3333333333333428 );
+                        expect( parse( byteArrayBE, { value: `${type}|BE` }).data.value ).toEqual( 0.3333333333333428 );
                     });
                 });
             });
@@ -232,52 +235,10 @@ describe('Parser', () => {
     });
 
     describe('when parsing a file', () => {
-
-        // this is essentially the header portion of a WAV file
-        const binaryFile = new Uint8Array([
-            82, 73, 70, 70, 166, 105, 1, 0, 87, 65,
-            86, 69, 102, 109, 116, 32, 16, 0, 0, 0,
-            1, 0, 1, 0, 128, 187, 0, 0, 0, 119,
-            1, 0, 2, 0, 16, 0, 100, 97, 116, 97,
-            130, 105, 1, 0
-        ]);
-
-        // and this is what it describes in the appropriate data types
-
-        const headerDefinition = {
-            type:             'CHAR[4]',
-            size:             'INT32',
-            format:           'CHAR[4]',
-            formatName:       'CHAR[4]',
-            formatLength:     'INT32',
-            audioFormat:      'INT16',
-            channelAmount:    'INT16',
-            sampleRate:       'INT32',
-            bytesPerSecond:   'INT32',
-            blockAlign:       'INT16',
-            bitsPerSample:    'INT16',
-            dataChunkId:      'CHAR[4]',
-            dataChunkSize:    'INT32'
-        };
-
         it('should be able to fill a structure with all appropriate types', () => {
             const parsedResult = parse( binaryFile, headerDefinition );
             expect( parsedResult ).toEqual({
-                data: {
-                    type: 'RIFF',
-                    size: 92582,
-                    format: 'WAVE',
-                    formatName: 'fmt ',
-                    formatLength: 16,
-                    audioFormat: 1,
-                    channelAmount: 1,
-                    sampleRate: 48000,
-                    bytesPerSecond: 96000,
-                    blockAlign: 2,
-                    bitsPerSample: 16,
-                    dataChunkId: 'data',
-                    dataChunkSize: 92546
-                },
+                data: binaryAsJson,
                 end: 44,
                 error: false
             });
