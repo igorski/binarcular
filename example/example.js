@@ -1,4 +1,4 @@
-import { types, parse, seek, fileToByteArray } from "../src/index.js";
+import { types, parse, seek, write, fileToByteArray, byteArrayToFile } from "../src/index.js";
 const { CHAR, INT8, INT16, INT32 } = types;
 
 // header for JPEG files (see https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format)
@@ -35,14 +35,26 @@ const wavHeader = {
     dataChunkSize:    INT32
 };
 
-// cached DOM elements and convenience methods
+// cached DOM elements
 
-const resultArea = document.querySelector( "#resultArea" );
-const formatJson = json => JSON.stringify( json, ( name, val ) => typeof val === "string" ? val.replace( /\u0000/g, "" ) : val, 2 );
+const resultArea  = document.querySelector( "#resultArea" );
+const replaceBtn  = document.querySelector( "#replaceContentBtn" );
+const downloadBtn = document.querySelector( "#downloadReplacedContentBtn" );
 
-// attach listener to file input and actual demo !
+// convenience methods
+
+const formatJson  = json => JSON.stringify( json, ( name, val ) => typeof val === "string" ? val.replace( /\u0000/g, "" ) : val, 2 );
+
+// attach listener to file input and show actual demo !
 
 document.querySelector( "#fileInput" ).addEventListener( "input", async event => {
+
+    // reset UI
+    [ replaceBtn, downloadBtn ].forEach( btn => {
+        btn.classList.add( "hidden" );
+        btn.onclick = null;
+    })
+
     // get file from input event
     const { files } = event.target;
     const file      = files[ 0 ];
@@ -50,17 +62,21 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
     if ( !file ) return; // likely selected same file
 
     if ( file.type === "image/jpeg" ) {
+
         // EXAMPLE 1: file is JPEG image
         const { data, error } = await parse( file, jpegHeader );
         resultArea.innerText = error ? "An error has occurred during file parsing" : formatJson( data );
-        // simple validation
+
+        // perform simple validation now we can easily read the header contents
         if ( data.startOfImageMarker === 0xffd8 && data.identifier.includes( "JFIF" )) {
             resultArea.innerText += "\n\nImage looks valid to me.";
         }
     } else {
-        let data, error;
 
         // EXAMPLE 2 : file is WAV audio file
+
+        let data, error;
+
         // first convert file into ByteArray (let's assume we will run into an error and need to do manual scanning, see below)
         let byteArray = await fileToByteArray( file );
 
@@ -125,7 +141,7 @@ async function attemptWavCorrection( byteArray, headerData ) {
 
 async function findWavAudioBlock( byteArray, headerData ) {
     let offset;
-    ({ offset, byteArray } = await seek( byteArray, headerData.dataChunkId, 0 ));
+    ({ offset, byteArray } = await seek( byteArray, headerData.dataChunkId, 0 )); // search for "data"
     if ( offset === Infinity ) {
         resultArea.innerText += "\nCould not find data block though.";
     } else {
@@ -149,8 +165,13 @@ async function findWavAudioBlock( byteArray, headerData ) {
         dataType = `${dataType}[${headerData.dataChunkSize}]|LE`;
 
         resultArea.innerText += `\nData block definition found at index ${offset}.\n` +
-        `Add the summed size of dataChunkId and dataChunkSize (8 bytes) to start reading the data from index ${offset + 8}!\n` +
-        `As the bit depth is ${headerData.bitsPerSample} and the RIFF format is Little Endian, you should parse for the "${dataType}" data-type.`;
+        `Add the summed size of dataChunkId and dataChunkSize (8 bytes) to start reading the data from index ${offset + 8}!\n\n` +
+        `As the bit depth is ${headerData.bitsPerSample} and the RIFF format is Little Endian, you should parse for the "${dataType}" data-type\n` +
+        `if you wish to retrieve all audio data.\n\n` +
+        `Now we know the location of the data block, we can inject our own content. How about we replace everything with a sine wave?`;
+
+        replaceBtn.classList.remove( "hidden" );
+        replaceBtn.onclick = async e => await replaceAudioBlock( byteArray, headerData, offset );
 
         // if you were interested in retrieving the audio data, you could do so like this:
         // const parsedData = await parse( byteArray, { audio: dataType }, offset + 8 );
@@ -159,5 +180,74 @@ async function findWavAudioBlock( byteArray, headerData ) {
     return {
         data: headerData,
         byteArray
+    };
+}
+
+async function replaceAudioBlock( wavFileByteArray, headerData, dataChunkIdOffset ) {
+    let result;
+
+    // add size of dataChunkId and dataChunkSize to determine where the audio should be written
+    const offsetToInject = dataChunkIdOffset + 8;
+
+    // now we know where the audio sections begins, separate the header data
+    let header = wavFileByteArray.slice( 0, offsetToInject );
+
+    // generate a 2 second sine wave tuned to A
+    const { sampleRate, channelAmount } = headerData;
+    const sizePerSample  = 2; // we will be rendering in 16-bit resolution (16-bits == 2 bytes)
+    const bytesPerSecond = sampleRate * channelAmount;
+
+    const sampleData   = new Array( bytesPerSecond * 2 /* seconds */ );
+    const sampleAmount = sampleData.length;
+
+    // audio generation
+    const multiplier = 2 * Math.PI * 440; // 440 Hz is A "above middle C"
+    for ( let i = 0, l = sampleAmount * sizePerSample; i < l; i += channelAmount ) {
+        // As Math.sin is in -1 to +1 range, we multiply by 32767 (max value of unsigned short) to get a 16-bit integer
+        const sample = Math.round( Math.sin( multiplier * ( i / sampleRate )) * 32767 );
+        // duplicate value for all audio channels (WAV files are interleaved, so each channels sample follows the other)
+        for ( let c = 0; c < channelAmount; ++c ) {
+            sampleData[ i + c ] = sample;
+        }
+    }
+
+    // hang on, was the WAV file 16-bit to begin with ?
+
+    if ( headerData.bytesPerSecond !== bytesPerSecond || headerData.bitsPerSample !== 16 || headerData.blockAlign !== sizePerSample ) {
+        // guess not... at least it's nice we could read those values using Numbrs! Well, we'll just update the existing value
+        // we subtract 8 bytes from the dataChunkIdOffset as that is were the declaration for
+        // bytesPerSecond is (bitsPerSample and blockAlign are both int16, whereas bytesPerSecond is int32, thus 8 bytes total)
+        result = await write( header,
+            { bytesPerSecond: INT32, blockAlign: INT16, bitsPerSample: INT16 },
+            { bytesPerSecond, blockAlign: ( 16 * sizePerSample ) / 8, bitsPerSample: 16 },
+            dataChunkIdOffset - 8
+        );
+        if ( !result.error ) {
+            header = result.byteArray;
+        }
+    }
+
+    // update the header to reflect the new dataChunkSize
+    // we add 4 bytes to the dataChunkIdOffset as that is where the declaration of the dataChunkSize is (dataChunkId is CHAR[4], thus 4 bytes)
+    result = await write( header, { dataChunkSize: INT32 }, { dataChunkSize: sampleAmount * sizePerSample }, dataChunkIdOffset + 4 );
+    if ( !result.error ) {
+        header = result.byteArray;
+    }
+
+    // convert the sine wave to binary
+
+    let audioByteArray;
+    result = await write( new Uint8Array( sampleAmount * sizePerSample ), { sampleData: `INT16[${sampleAmount}]`}, { sampleData });
+    if ( !result.error ) {
+        audioByteArray = result.byteArray;
+    }
+
+    downloadBtn.classList.remove( "hidden" );
+    downloadBtn.onclick = e => {
+        // combine the binary header data with the binary sine wave
+        const replacedWavFile = new Uint8Array( header.length + audioByteArray.length );
+        replacedWavFile.set( header );
+        replacedWavFile.set( audioByteArray, header.length );
+        byteArrayToFile( replacedWavFile, "generated-wave-file.wav", "audio/wav" );
     };
 }

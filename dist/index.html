@@ -1,6 +1,9 @@
 <!doctype html><html><head><title>Binary Parsin' Demo Fun</title></head><body style="padding: 8px 16px; margin: 0;"><p>In this demo you can select either JPG or WAV files from your local system. Their headers will be read and displayed on the page.</p><p>While the JPG example isn't too exciting (as the web excels at handling these files), the WAV one has a more interesting use case which uses error correction when dealing with a file containing metadata that deviates from the spec.</p><p>Have a look at the code (example.js) to see what is going on.</p><form><fieldset><label for="fileInput">Select a file</label> <input type="file" accept="image/jpeg,audio/wav" id="fileInput"/></fieldset></form><pre>
           <code id="resultArea"></code>
-      </pre><script src="example.min.js"></script></body><style>#resultArea {
+      </pre><button id="replaceContentBtn" class="hidden">Replace audio with 2 second sine wave</button> <button id="downloadReplacedContentBtn" class="hidden">Download file with replaced binary content</button><script src="example.min.js"></script></body><style>#resultArea {
           width: 250px;
           height: 250px;
+      }
+      .hidden {
+          display: none;
       }</style></html>

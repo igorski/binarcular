@@ -181,7 +181,7 @@ function writeMultiple( writeOffset, length, size, fn ) {
 /* public API */
 
 export function write( byteArray, structureDefinition, dataToWrite, optWriteOffset = 0 ) {
-    const total         = getSizeForStructure( structureDefinition );
+    const total         = optWriteOffset + getSizeForStructure( structureDefinition );
     const structureKeys = Object.keys( structureDefinition );
     const totalKeys     = structureKeys.length;
     let keyIndex        = 0;
@@ -208,7 +208,7 @@ export function write( byteArray, structureDefinition, dataToWrite, optWriteOffs
         ++keyIndex;
     }
     out.end   = i;
-    out.error = out.end !== optWriteOffset + total;
+    out.error = out.end !== total;
 
     return out;
 }
