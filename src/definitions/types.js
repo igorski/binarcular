@@ -33,7 +33,7 @@ const TYPE_NAMES = [
     'SHORT', 'INT16', 'UINT16',
     'INT24', 'UINT24',
     'INT32', 'UINT32', 'LONG', 'ULONG', 'FLOAT', 'FLOAT32',
-    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64',
+    'INT64', 'UINT64', 'LONGLONG', 'ULONGLONG', 'DOUBLE', 'FLOAT64'
 ];
 
 export const types = Object.freeze( TYPE_NAMES.reduce(( acc, name ) => {

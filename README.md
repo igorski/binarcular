@@ -1,7 +1,7 @@
 # Binarcular
 
 A library that allows you to read/write the contents of a binary file into/from a JSON Object,
-taking care of all data type conversion into JavaScript-friendly values. You can search for data
+taking care of all data type conversion using JavaScript-friendly values. You can search for data
 by value, slice blocks into separate, meaningful structures or generate a binary downloadable
 file, all inside your browser.
 
@@ -9,8 +9,9 @@ Practical use cases are:
 
 * Validating whether a file header contains the appropriate description, automatically
   converted to the data types
-* Scanning a file for specific meta data
-* Using found meta data to locate where other meaningful data is stored... and extract it
+* Scanning a file for specific meta data to determine the location of other meaningful data
+* Writing a binary file in your browser, without having to write meaningless byte values
+ repeatedly at ever increasing indices.
 
 See API and Example below.
 
@@ -56,7 +57,7 @@ import {
     seek:            async fn( uint8Array, searchStringOrByteArray, optReadOffset = 0 ),
     write:           async fn( uint8Array, structureDefinition, dataToWrite, optWriteOffset = 0 )
     fileToByteArray: async fn( file, optSliceOffset = 0, optSliceSize = file.size )
-    byteArrayToFile: fn( byteArray, filename, optMimeType = 'application/octet-stream' )
+    byteArrayToFile: fn( uint8Array, filename, optMimeType = 'application/octet-stream' )
 
 } from 'binarcular';
 ```
@@ -147,12 +148,13 @@ where:
 
 * _uint8Array_ is the ByteArray containing the binary data.
 * _structureDefinition_ is an Object defining a data structure ([as described here](#define-a-structure))
-* _dataToWrite_ is an Object following the data structure, except the values here is the
+* _dataToWrite_ is an Object following the data structure, except the value here is the
   data you wish to write in the binary file.
 * _optWriteOffset_ is the index at which data will be written. This defaults to _0_ to
- start writing at the beginning of the file.
+ start writing at the beginning of the file. Data will be written for the length of
+ given _structureDefinition_, all existing data beyond this point will remain unchanged.
 
-The result of this operations is the following:
+The result of this operation is the following:
 
 ```
 {
@@ -164,10 +166,9 @@ The result of this operations is the following:
 ```
 
 Where _byteArray_ should replace the reference of the _byteArray_ you passed into
-the method. This ByteArray contains the original data except that the data starting
-at requested _optWriteOffset_ and ending at _optWriteOffset_ + length of
-_structureDefinition_ has been replaced with the binary equivalent of the JSON
-structure defined in the _dataToWrite_-Object.
+the method. This ByteArray contains the original data except that the data block starting
+at requested _optWriteOffset_ has been replaced with the binary equivalent of the _dataToWrite_-Object.
+All data beyond the size of the written data block remains unchanged.
 
 ### Converting a File reference to a ByteArray
 

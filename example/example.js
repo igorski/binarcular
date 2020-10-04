@@ -61,7 +61,7 @@ document.querySelector( "#fileInput" ).addEventListener( "input", async event =>
         let data, error;
 
         // EXAMPLE 2 : file is WAV audio file
-        // first convert file into ByteArray (let"s assume we will run into an error and need to do manual scanning, see below)
+        // first convert file into ByteArray (let's assume we will run into an error and need to do manual scanning, see below)
         let byteArray = await fileToByteArray( file );
 
         // NOTE: when passing around a byteArray you should always update its reference
@@ -132,13 +132,17 @@ async function findWavAudioBlock( byteArray, headerData ) {
         let dataType;
         switch ( headerData.bitsPerSample ) {
             default:
-                dataType = "FLOAT32"; // max 32-bit floating point
-                break;
             case 16:
                 dataType = "INT16";
                 break;
+            case 8:
+                dataType = "INT8";
+                break;
             case 24:
                 dataType = "INT24";
+                break;
+            case 32:
+                dataType = "FLOAT32"; // max for WAV format is 32-bit floating point
                 break;
         }
         // add size of Array and endianness to this data type (RIFF is always Little Endian)

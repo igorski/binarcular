@@ -115,8 +115,8 @@ export async function seek( byteArray, stringOrByteArray, offset = 0 ) {
 }
 
 /**
- * Translate the JSON values in data according to the spec definition by
- * structureDefinition into bytes and write them starting from optWriteOffset
+ * Translate the JSON values inside data according to the spec defined by
+ * structureDefinition into bytes and write them starting at optWriteOffset
  * into given byteArray.
  */
 export async function write( byteArray, structureDefinition, data, optWriteOffset = 0 ) {
