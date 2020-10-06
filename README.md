@@ -7,11 +7,11 @@ file, all inside your browser.
 
 Practical use cases are:
 
-* Validating whether a file header contains the appropriate description, automatically
-  converted to the data types
-* Scanning a file for specific meta data to determine the location of other meaningful data
-* Writing a binary file in your browser, without having to write meaningless byte values
- repeatedly at ever increasing indices.
+* Validating whether a file header contains the appropriate description, by comparing
+ its parsed data to the respective data types
+* Scanning a file for specific metadata to determine the location of other meaningful data
+* Creating a binary file in your browser, without having to repeatedly write meaningless byte
+values in sequence
 
 See API and Example below.
 
@@ -41,7 +41,7 @@ npm install binarcular
 
 ### Project integration
 
-The parser is compatible with CommonJS / ES6 modules or can be included in a document
+The library is compatible with CommonJS / ES6 modules or can be included in a document
 using AMD/RequireJS. See the contents of the _/dist/_ folder and include as your project sees fit.
 
 ## API
@@ -66,7 +66,7 @@ We'll look into each of these below:
 
 ### Reading a chunk of data into an Object of a specific structure type
 
-The _parse_ method is reponsible for this:
+Handled by the _parse_ method:
 
 ```
 async parse( dataSource, structureDefinition, optReadOffset = 0 )
@@ -266,7 +266,7 @@ async function readWaveHeader( fileReference ) {
 }
 ```
 
-You can also view the [demo](https://htmlpreview.github.io/?https://github.com/igorski/typed-file-parser/blob/master/dist/index.html) provided in this repository's _example.html_ file, which
+You can also view the [demo](https://htmlpreview.github.io/?https://github.com/igorski/binarcular/blob/master/dist/index.html) provided in this repository's _example.html_ file, which
 parses .WAV files and provides advanced examples using seeking, slicing and error
 correction before finally providing you with the instruction on how to extract the
 meaningful data from the file.

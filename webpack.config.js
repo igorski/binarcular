@@ -14,7 +14,7 @@ const dirApp    = path.join(__dirname, 'src');
  */
 const config = {
     entry: {
-        typedFileParser: path.join(dirApp, 'index')
+        binarcular: path.join(dirApp, 'index')
     },
     resolve: {
         modules: [
